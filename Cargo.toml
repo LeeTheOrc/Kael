@@ -34,6 +34,9 @@ egui_extras = { version = "0.32", features = ["image"] }
 # HTTP client for Ollama
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 
+# For local GGUF model inference (alternative to Ollama)
+# llama-gguf = { version = "0.13", default-features = false, features = ["cpu"] }
+
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
 

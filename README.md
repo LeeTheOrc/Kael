@@ -67,10 +67,13 @@ Kael/
   - All messages go to Director AI first
   - Director routes to appropriate sub-AI (PA, Programmer, Vision)
   - Request type detection (Chat, Schedule, Email, Code, Vision, Install, Search)
-  - Terminal execution for app installation
-  - Internet search capability
-  - Ollama integration for real AI responses
-- [ ] Connect to llama.cpp for local AI (pending - needs Ollama)
+- [x] Terminal integration with sudo password support
+  - `/setsudo <password>` - Set sudo password for terminal commands
+  - `/terminal <command>` - Run terminal command directly
+  - Seamless experience - no confirmation dialogs
+  - Only sudo commands need password (your safety net)
+- [x] Ollama integration for local AI models
+- [ ] llama.cpp integration (in progress - needs GGUF model files)
 - [ ] Vision AI integration (pending)
 - [ ] RAG system (pending)
 - [ ] Profile encryption (pending)

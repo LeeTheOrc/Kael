@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use tokio::runtime::Runtime;
 
+use crate::ai::Terminal;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MessageRole {
     #[default]
@@ -115,6 +117,8 @@ pub struct KaelApp {
     ollama_available: bool,
     runtime: Runtime,
     ollama_url: String,
+    terminal: Terminal,
+    sudo_set: bool,
 }
 
 impl KaelApp {
@@ -133,6 +137,8 @@ impl KaelApp {
             ollama_available,
             runtime,
             ollama_url,
+            terminal: Terminal::new(),
+            sudo_set: false,
         };
         
         let welcome_msg = if app.ollama_available {
@@ -181,6 +187,86 @@ impl KaelApp {
     fn send_message(&mut self) {
         let content = self.input_text.trim();
         if content.is_empty() {
+            return;
+        }
+        
+        // Handle special commands
+        if content.starts_with("/setsudo ") {
+            let password = content.strip_prefix("/setsudo ").unwrap().trim();
+            if password.is_empty() {
+                self.messages.push(ChatMessage {
+                    role: MessageRole::Assistant,
+                    content: "Usage: /setsudo <password>\n\nThis sets your sudo password for terminal commands that require it.".to_string(),
+                    timestamp: chrono::Utc::now(),
+                    request_type: Some(RequestType::System),
+                });
+            } else {
+                self.terminal.set_sudo_password(password.to_string());
+                self.sudo_set = true;
+                self.messages.push(ChatMessage {
+                    role: MessageRole::Assistant,
+                    content: "✅ Sudo password set! Terminal commands requiring sudo will now work automatically.".to_string(),
+                    timestamp: chrono::Utc::now(),
+                    request_type: Some(RequestType::System),
+                });
+            }
+            self.input_text.clear();
+            return;
+        }
+        
+        if content == "/clearsudo" {
+            self.terminal.clear_sudo_password();
+            self.sudo_set = false;
+            self.messages.push(ChatMessage {
+                role: MessageRole::Assistant,
+                content: "✅ Sudo password cleared for security.".to_string(),
+                timestamp: chrono::Utc::now(),
+                request_type: Some(RequestType::System),
+            });
+            self.input_text.clear();
+            return;
+        }
+        
+        if content == "/help" {
+            let help = r#"Kael Commands:
+/setsudo <password> - Set your sudo password for terminal commands
+/clearsudo          - Clear stored sudo password (recommended after use)
+/terminal <command>  - Run a terminal command directly
+
+Examples:
+/setsudo mypassword123
+/terminal sudo pacman -S firefox
+/terminal ls -la
+"#;
+            self.messages.push(ChatMessage {
+                role: MessageRole::Assistant,
+                content: help.to_string(),
+                timestamp: chrono::Utc::now(),
+                request_type: Some(RequestType::System),
+            });
+            self.input_text.clear();
+            return;
+        }
+        
+        if content.starts_with("/terminal ") {
+            let command = content.strip_prefix("/terminal ").unwrap();
+            let result = self.terminal.execute(command);
+            
+            let response = if result.success {
+                format!("✅ Command executed successfully:\n\n{}", result.stdout)
+            } else if result.needs_sudo {
+                format!("⚠️ Sudo required but no password set.\n\nUse /setsudo <password> to set your sudo password.\n\nError: {}", result.stderr)
+            } else {
+                format!("❌ Command failed:\n\n{}", result.stderr)
+            };
+            
+            self.messages.push(ChatMessage {
+                role: MessageRole::Assistant,
+                content: response,
+                timestamp: chrono::Utc::now(),
+                request_type: Some(RequestType::System),
+            });
+            self.input_text.clear();
             return;
         }
         
@@ -285,8 +371,10 @@ impl KaelApp {
                 )
             }
             RequestType::Install => {
+                let pm = self.terminal.check_package_manager();
                 format!(
-                    "📦 **Install Request Detected**\n\nI'd help you install an application.\n\nFrom your message, it seems you want to install something. Here's how it would work:\n\n1. **Programmer AI** would determine what you need\n2. **Director** would check your package manager\n3. I'd show you the command and ask for confirmation\n4. Then run it in the terminal\n\n**Demo mode** - Ollama not running"
+                    "📦 **Install Request Detected**\n\nI'd help you install an application.\n\nYour system uses: **{}**\n\nTo install, use terminal command:\n```\n/terminal sudo {} install <package>\n```\n\nSet your sudo password first:\n```\n/setsudo <your-password>\n```\n\n**Demo mode** - Ollama not running",
+                    pm, pm
                 )
             }
             RequestType::Schedule | RequestType::Email => {
@@ -303,7 +391,7 @@ impl KaelApp {
             }
             _ => {
                 format!(
-                    "💬 **Chat Message**\n\nReceived: \"{}\"\n\n**Request Type:** {:?}\n**Routing to:** {}\n\nAll messages go through the **Director AI** first, which then routes to the appropriate sub-AI.\n\n**Demo mode** - Ollama not running",
+                    "💬 **Chat Message**\n\nReceived: \"{}\"\n\n**Request Type:** {:?}\n**Routing to:** {}\n\nAll messages go through the **Director AI** first, which then routes to the appropriate sub-AI.\n\n**Demo mode** - Ollama not running\n\n---\n\n**Terminal Commands:**\n• `/setsudo <password>` - Set sudo password\n• `/terminal <command>` - Run command directly\n• `/help` - Show all commands",
                     message.chars().take(100).collect::<String>(),
                     request_type,
                     request_type.target_ai()
@@ -356,6 +444,14 @@ impl eframe::App for KaelApp {
                     if ui.selectable_label(is_selected, button_text).clicked() {
                         self.switch_ai(ai);
                     }
+                }
+                
+                ui.separator();
+                ui.label(egui::RichText::new("Terminal:").color(egui::Color32::GRAY));
+                if self.sudo_set {
+                    ui.label(egui::RichText::new("🔑 Sudo Ready").color(egui::Color32::from_rgb(16, 185, 129)));
+                } else {
+                    ui.label(egui::RichText::new("⚠️ No Sudo").color(egui::Color32::from_rgb(251, 191, 36)));
                 }
                 
                 ui.separator();
