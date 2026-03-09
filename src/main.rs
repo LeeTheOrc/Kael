@@ -1,3 +1,4 @@
+mod ai;
 mod gui;
 
 fn main() -> eframe::Result<()> {

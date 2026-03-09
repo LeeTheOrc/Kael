@@ -63,7 +63,14 @@ Kael/
 - [x] GPG key created and added to GitHub
 - [x] Git repository initialized and pushed to GitHub
 - [x] GUI chat interface (ChatGPT-style using eframe/egui)
-- [ ] Ollama/llama.cpp integration (pending)
+- [x] AI Flow system implemented:
+  - All messages go to Director AI first
+  - Director routes to appropriate sub-AI (PA, Programmer, Vision)
+  - Request type detection (Chat, Schedule, Email, Code, Vision, Install, Search)
+  - Terminal execution for app installation
+  - Internet search capability
+  - Ollama integration for real AI responses
+- [ ] Connect to llama.cpp for local AI (pending - needs Ollama)
 - [ ] Vision AI integration (pending)
 - [ ] RAG system (pending)
 - [ ] Profile encryption (pending)
