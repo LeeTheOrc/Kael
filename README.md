@@ -61,7 +61,7 @@ Kael/
 - [x] Basic config module (TOML-based)
 - [x] Basic CLI chat interface (no AI yet)
 - [x] GPG key created and added to GitHub
-- [ ] Git repository initialized (pending)
+- [x] Git repository initialized and pushed to GitHub
 - [ ] Ollama/llama.cpp integration (pending)
 - [ ] Vision AI integration (pending)
 - [ ] RAG system (pending)
