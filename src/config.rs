@@ -105,7 +105,7 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn load(config_dir: &PathBuf) -> Result<Self> {
+    pub fn load(config_dir: &std::path::Path) -> Result<Self> {
         let config_path = config_dir.join("config.toml");
         
         if config_path.exists() {

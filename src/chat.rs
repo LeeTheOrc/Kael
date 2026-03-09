@@ -2,8 +2,6 @@ use std::io::{self, Write};
 use anyhow::Result;
 use crate::config::Config;
 
-mod config;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MessageRole {
     User,

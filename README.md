@@ -62,6 +62,7 @@ Kael/
 - [x] Basic CLI chat interface (no AI yet)
 - [x] GPG key created and added to GitHub
 - [x] Git repository initialized and pushed to GitHub
+- [x] GUI chat interface (ChatGPT-style using eframe/egui)
 - [ ] Ollama/llama.cpp integration (pending)
 - [ ] Vision AI integration (pending)
 - [ ] RAG system (pending)

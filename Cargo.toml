@@ -27,8 +27,19 @@ regex = "1"
 image = "0.25"
 base64 = "0.22"
 
+# GUI - eframe/egui
+eframe = "0.32"
+egui_extras = { version = "0.32", features = ["image"] }
+
+# HTTP client for Ollama
+reqwest = { version = "0.12", features = ["json", "blocking"] }
+
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
 
 [features]
 default = []
+
+# Optimize for faster builds during dev
+[profile.dev]
+opt-level = 0
