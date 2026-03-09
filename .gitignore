@@ -1,0 +1,33 @@
+# Build outputs
+target/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local config (has secrets)
+config.toml
+.vault/
+.profiles/
+
+# Backup
+*.bak
+*.backup
+
+# Binaries
+pkgbuild/debug/
+pkgbuild/release/

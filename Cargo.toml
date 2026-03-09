@@ -1,0 +1,34 @@
+[package]
+name = "kael"
+version = "0.1.0"
+edition = "2021"
+description = "Kael - AI Assistant (Director/Chat/PA & Programmer)"
+authors = ["Lee The Orc <leetheorc@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/LeeTheOrc/Kael"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+directories = "5"
+toml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+thiserror = "2"
+anyhow = "1"
+once_cell = "1"
+parking_lot = "0.12"
+regex = "1"
+image = "0.25"
+base64 = "0.22"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+
+[features]
+default = []
