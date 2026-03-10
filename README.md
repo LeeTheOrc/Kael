@@ -29,6 +29,20 @@ Kael is a fully local AI Assistant built entirely in Rust with continuous learni
 
 ```
 /home/leroy/Kael/                          # Kael Root
+├── .vault/                                # Training Data (SQL/RAG/Lora)
+│   ├── director/                          # Director AI training
+│   │   └── training.db                    # Knowledge, interactions, loras
+│   ├── programmer/                        # Programmer AI training
+│   │   └── training.db
+│   └── vision/                            # Vision AI training
+│       └── training.db
+├── modals/                                # AI Model Files (.gguf)
+│   ├── director/                          # Director model
+│   │   └── director.gguf
+│   ├── programmer/                        # Programmer model
+│   │   └── programmer.gguf
+│   └── vision/                            # Vision model
+│       └── vision.gguf
 ├── apps/                                  # Applications
 │   └── kael/                              # Main App
 │       ├── Cargo.toml
@@ -48,19 +62,9 @@ Kael is a fully local AI Assistant built entirely in Rust with continuous learni
 │       │       ├── ollama.rs
 │       │       └── search.rs
 │       └── target/                         # Built binaries
-├── modals/                                # AI Models & Training
-│   ├── director/                          # Director AI
-│   │   ├── director.gguf                  # Model file
-│   │   └── training.db                    # Knowledge, interactions, loras
-│   ├── programmer/                        # Programmer AI
-│   │   ├── programmer.gguf
-│   │   └── training.db
-│   └── vision/                            # Vision AI
-│       ├── vision.gguf
-│       └── training.db
 ├── .profiles/                             # Encrypted profiles (pending)
 ├── docs/                                  # Documentation
-└── pkgbuild/                             # Package builds
+└── pkgbuild/                              # Package builds
 ```
 
 ---
@@ -80,8 +84,8 @@ Kael is a fully local AI Assistant built entirely in Rust with continuous learni
 - [x] Models stored in `modals/`
 - [x] Works completely offline after download
 
-### Per-AI Training System
-- [x] Separate SQLite database for each AI
+### Per-AI Training System (.vault)
+- [x] Separate SQLite database for each AI in `.vault/`
 - [x] Knowledge base with confidence scores
 - [x] Interaction history with feedback tracking
 - [x] LoRA adapter management
@@ -162,7 +166,7 @@ Each AI shows:
 ## How Learning Works
 
 1. **Start Small** - Each AI starts with base Dolphin model
-2. **Learn from Use** - Interactions stored in SQL with confidence scores
+2. **Learn from Use** - Interactions stored in `.vault/` SQL with confidence scores
 3. **RAG Context** - Knowledge injected into prompts automatically
 4. **Baking** - When 100+ unbaked items, can "bake" knowledge
 5. **Restart Cycle** - Bake = restart with smarter base model

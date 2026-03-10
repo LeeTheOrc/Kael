@@ -45,16 +45,16 @@ pub struct AiTrainingSystem {
 
 impl AiTrainingSystem {
     pub fn new(ai_type: &str) -> Self {
-        let modals_dir = if let Ok(current_dir) = std::env::current_dir() {
+        let vault_dir = if let Ok(current_dir) = std::env::current_dir() {
             current_dir
                 .parent()
-                .map(|p| p.join("modals"))
-                .unwrap_or_else(|| PathBuf::from("modals"))
+                .map(|p| p.join(".vault"))
+                .unwrap_or_else(|| PathBuf::from(".vault"))
         } else {
-            PathBuf::from("modals")
+            PathBuf::from(".vault")
         };
 
-        let ai_dir = modals_dir.join(ai_type);
+        let ai_dir = vault_dir.join(ai_type);
         let db_path = ai_dir.join("training.db");
 
         Self {

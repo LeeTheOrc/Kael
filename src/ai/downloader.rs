@@ -144,9 +144,25 @@ pub fn ensure_modals_dir() {
         std::fs::create_dir_all(&dir).ok();
     }
     
-    // Create subdirectories
+    // Create subdirectories for models
     for subdir in ["director", "programmer", "vision"] {
         let path = dir.join(subdir);
+        if !path.exists() {
+            std::fs::create_dir_all(&path).ok();
+        }
+    }
+    
+    // Also create .vault subdirectories for training databases
+    let vault_dir = if let Ok(current_dir) = std::env::current_dir() {
+        current_dir.parent()
+            .map(|p| p.join(".vault"))
+            .unwrap_or_else(|| PathBuf::from(".vault"))
+    } else {
+        PathBuf::from(".vault")
+    };
+    
+    for subdir in ["director", "programmer", "vision"] {
+        let path = vault_dir.join(subdir);
         if !path.exists() {
             std::fs::create_dir_all(&path).ok();
         }
