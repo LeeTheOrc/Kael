@@ -204,7 +204,11 @@ Config stored in:
 
 ## Version History
 
-- **v0.4.0** - Local GGUF inference + per-AI training system + auto-download
+- **v0.4.0** - Local GGUF inference + per-AI training (SQL→RAG→LoRA→Bake) + auto-download
 - **v0.3.0** - Autonomous chat + built-in terminal
 - **v0.2.0** - GUI interface
 - **v0.1.0** - Initial project
+
+---
+
+## See You Tomorrow! 🌙
