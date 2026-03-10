@@ -25,32 +25,42 @@ Kael is a fully local AI Assistant built entirely in Rust with continuous learni
 
 ---
 
-## Directory Structure
+## Folder Structure
 
 ```
-Kael/
-├── apps/kael/           # Main application
-│   ├── src/
-│   │   ├── main.rs
-│   │   ├── gui.rs
-│   │   └── ai/
-│   │       ├── llama.rs         # llama-gguf integration
-│   │       ├── downloader.rs    # Auto-download models
-│   │       └── training.rs     # Per-AI training system
-│   └── target/
-├── modals/              # AI Models & Training Data
-│   ├── director/        # Director AI
-│   │   ├── director.gguf
-│   │   └── training.db  # Knowledge, interactions, loras
-│   ├── programmer/      # Programmer AI
+/home/leroy/Kael/                          # Kael Root
+├── apps/                                  # Applications
+│   └── kael/                              # Main App
+│       ├── Cargo.toml
+│       ├── src/
+│       │   ├── main.rs
+│       │   ├── gui.rs                     # Main GUI
+│       │   ├── config.rs
+│       │   ├── chat.rs
+│       │   └── ai/                        # AI Modules
+│       │       ├── llama.rs               # llama-gguf
+│       │       ├── downloader.rs          # HuggingFace download
+│       │       ├── training.rs            # Per-AI training
+│       │       ├── database.rs
+│       │       ├── vault.rs
+│       │       ├── terminal.rs
+│       │       ├── orchestrator.rs
+│       │       ├── ollama.rs
+│       │       └── search.rs
+│       └── target/                         # Built binaries
+├── modals/                                # AI Models & Training
+│   ├── director/                          # Director AI
+│   │   ├── director.gguf                  # Model file
+│   │   └── training.db                    # Knowledge, interactions, loras
+│   ├── programmer/                        # Programmer AI
 │   │   ├── programmer.gguf
 │   │   └── training.db
-│   └── vision/         # Vision AI
+│   └── vision/                            # Vision AI
 │       ├── vision.gguf
 │       └── training.db
-├── .profiles/           # Encrypted profiles (pending)
-├── docs/
-└── pkgbuild/
+├── .profiles/                             # Encrypted profiles (pending)
+├── docs/                                  # Documentation
+└── pkgbuild/                             # Package builds
 ```
 
 ---
@@ -67,7 +77,7 @@ Kael/
 ### Local AI (No External Dependencies)
 - [x] llama-gguf integration (pure Rust GGUF inference)
 - [x] Auto-download models from HuggingFace
-- [x] Models stored in `../modals/`
+- [x] Models stored in `modals/`
 - [x] Works completely offline after download
 
 ### Per-AI Training System
@@ -110,8 +120,13 @@ Kael/
 
 ### Run Kael
 ```bash
-cd apps/kael
+cd /home/leroy/Kael/apps/kael
 cargo run --release
+```
+
+Or run the built binary:
+```bash
+/home/leroy/Kael/apps/kael/target/debug/kael
 ```
 
 ### First Run
