@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use tokio::runtime::Runtime;
 
-use crate::ai::{Terminal, Vault};
+use crate::ai::{LlamaEngine, Terminal, Vault};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MessageRole {
@@ -115,7 +115,7 @@ pub struct KaelApp {
     current_ai: AiMode,
     is_loading: bool,
     chat_history: VecDeque<(AiMode, Vec<ChatMessage>)>,
-    ollama_available: bool,
+    llama_engine: LlamaEngine,
     runtime: Runtime,
     ollama_url: String,
     terminal: Terminal,
@@ -129,9 +129,11 @@ pub struct KaelApp {
 impl KaelApp {
     pub fn new() -> Self {
         let runtime = Runtime::new().expect("Failed to create Tokio runtime");
-        
+        let llama_engine = LlamaEngine::new();
         let ollama_url = "http://localhost:11434".to_string();
-        let ollama_available = runtime.block_on(check_ollama(&ollama_url));
+        
+        // List available models (this also creates dir on first run)
+        let _models = LlamaEngine::list_available_models();
         
         let vault = match Vault::new() {
             Ok(v) => Some(v),
@@ -147,7 +149,7 @@ impl KaelApp {
             current_ai: AiMode::Director,
             is_loading: false,
             chat_history: VecDeque::new(),
-            ollama_available,
+            llama_engine,
             runtime,
             ollama_url,
             terminal: Terminal::new(),
@@ -158,10 +160,16 @@ impl KaelApp {
             terminal_input: String::new(),
         };
         
-        let welcome_msg = if app.ollama_available {
-            "Hello! I'm Kael, your AI assistant.\n\nJust chat naturally with me and I'll understand what you need:\n• Schedule appointments → I'll help with calendar\n• Write code → I'll use the Programmer\n• Analyze images → I'll use Vision\n• Install apps → I'll run the commands\n• General chat → I'm here to help\n\nNo commands needed - just tell me what you want!"
+        let models = LlamaEngine::list_available_models();
+        let welcome_msg = if !models.is_empty() {
+            format!(
+                "Hello! I'm Kael, your AI assistant.\n\n✅ Local AI models available: {}\n\nJust chat naturally with me and I'll understand what you need:\n• Schedule appointments → I'll help with calendar\n• Write code → I'll use the Programmer\n• Analyze images → I'll use Vision\n• Install apps → I'll run the commands\n• General chat → I'm here to help\n\nNo commands needed - just tell me what you want!",
+                models.join(", ")
+            )
         } else {
-            "Hello! I'm Kael, your AI assistant.\n\n⚠️ Running in demo mode (Ollama not detected)\n\nJust chat naturally - I'll understand what you need!\n\nClick '📟 Terminal' on the left for a built-in terminal."
+            format!(
+                "Hello! I'm Kael, your AI assistant.\n\n⚠️ No GGUF models found in ~/.local/share/Kael/models/\n\nDownload a GGUF model (like TinyLlama or Qwen) and place it in the models folder to enable local AI.\n\nIn the meantime, click '📟 Terminal' on the left for a built-in terminal."
+            )
         };
         
         app.messages.push(ChatMessage {
@@ -324,25 +332,53 @@ impl KaelApp {
             }
         }
         
-        // Build messages for Ollama
-        let messages_json: Vec<serde_json::Value> = self.messages
-            .iter()
-            .map(|m| {
-                serde_json::json!({
-                    "role": match m.role {
-                        MessageRole::User => "user",
-                        MessageRole::Assistant => "assistant", 
-                        MessageRole::System => "system",
-                    },
-                    "content": m.content
-                })
-            })
-            .collect();
+        // Build system prompt based on AI mode
+        let system_prompt = match self.current_ai {
+            AiMode::Director => "You are Kael, a helpful AI assistant. Be concise and practical. Help with scheduling, email, and general tasks.",
+            AiMode::Programmer => "You are Kael, a programming assistant. Provide clear, accurate code and explanations. Focus on Rust, but can help with any language.",
+            AiMode::Vision => "You are Kael with vision capabilities. Describe images accurately.",
+            AiMode::Terminal => "You are Kael helping with terminal commands. Provide command-line guidance.",
+        };
         
-        let response = if self.ollama_available {
-            self.call_ollama(&messages_json, self.current_ai.model_name())
+        // Use local llama.gguf model if loaded, otherwise demo mode
+        let response = if self.llama_engine.is_loaded() {
+            // Get conversation context
+            let context: String = self.messages
+                .iter()
+                .map(|m| format!("{}: {}", 
+                    match m.role {
+                        MessageRole::User => "User",
+                        MessageRole::Assistant => "Assistant",
+                        MessageRole::System => "System",
+                    },
+                    m.content
+                ))
+                .collect::<Vec<_>>()
+                .join("\n");
+            
+            let prompt = format!("{}\n\n{}\nUser: {}\nAssistant:", system_prompt, context, last_message);
+            
+            match self.llama_engine.generate(&prompt, Some(512)) {
+                Ok(response) => response,
+                Err(e) => format!("Error: {}", e),
+            }
         } else {
-            self.demo_response(&last_message, request_type)
+            // No model loaded - show help
+            let models = LlamaEngine::list_available_models();
+            if models.is_empty() {
+                format!(
+                    "⚠️ No AI model loaded.\n\nTo enable AI:\n1. Download a GGUF model (e.g., TinyLlama, Qwen2)\n2. Place it in: {}\n3. Restart Kael\n\nOr use /load <path> to load a model.",
+                    LlamaEngine::get_models_dir().display()
+                )
+            } else {
+                // Try to auto-load first available model
+                let model_path = LlamaEngine::get_models_dir().join(&models[0]);
+                if let Err(e) = self.llama_engine.load_model(model_path.to_str().unwrap_or("")) {
+                    format!("Found models but failed to load: {}", e)
+                } else {
+                    format!("✅ Loaded model: {}\n\nTry sending your message again!", models[0])
+                }
+            }
         };
         
         self.messages.push(ChatMessage {
@@ -476,10 +512,18 @@ impl eframe::App for KaelApp {
                 
                 // Status
                 ui.label(egui::RichText::new("Status:").color(egui::Color32::GRAY));
-                if self.ollama_available {
-                    ui.label(egui::RichText::new("🟢 Connected").color(egui::Color32::from_rgb(16, 185, 129)));
+                if self.llama_engine.is_loaded() {
+                    let model_name = self.llama_engine.get_model_path()
+                        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+                        .unwrap_or_else(|| "Model".to_string());
+                    ui.label(egui::RichText::new(format!("🟢 {}", model_name)).color(egui::Color32::from_rgb(16, 185, 129)));
                 } else {
-                    ui.label(egui::RichText::new("🔴 Demo").color(egui::Color32::from_rgb(239, 68, 68)));
+                    let models = LlamaEngine::list_available_models();
+                    if models.is_empty() {
+                        ui.label(egui::RichText::new("🔴 No model").color(egui::Color32::from_rgb(239, 68, 68)));
+                    } else {
+                        ui.label(egui::RichText::new("🟡 Model available").color(egui::Color32::from_rgb(234, 179, 8)));
+                    }
                 }
                 
                 ui.separator();
@@ -581,10 +625,10 @@ impl eframe::App for KaelApp {
                         if self.is_loading {
                             ui.spinner();
                             ui.label("Thinking...");
-                        } else if self.ollama_available {
-                            ui.label("Ready");
+                        } else if self.llama_engine.is_loaded() {
+                            ui.label("AI Ready");
                         } else {
-                            ui.label("Demo mode");
+                            ui.label("No model loaded");
                         }
                     });
                 });
