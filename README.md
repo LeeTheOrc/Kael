@@ -73,8 +73,10 @@ Kael/
   - Seamless experience - no confirmation dialogs
   - Only sudo commands need password (your safety net)
 - [x] Ollama integration for local AI models
-- [ ] llama.cpp integration (in progress - needs GGUF model files)
-- [ ] Vision AI integration (pending)
+- [x] Image support for Vision AI
+  - `/image /path/to/image.png` - Analyze images
+  - Supported formats: PNG, JPG, JPEG, GIF, BMP, WebP
+- [ ] llama.cpp integration (pending - requires GGUF model files)
 - [ ] RAG system (pending)
 - [ ] Profile encryption (pending)
 

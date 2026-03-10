@@ -119,6 +119,7 @@ pub struct KaelApp {
     ollama_url: String,
     terminal: Terminal,
     sudo_set: bool,
+    selected_image: Option<String>,
 }
 
 impl KaelApp {
@@ -139,6 +140,7 @@ impl KaelApp {
             ollama_url,
             terminal: Terminal::new(),
             sudo_set: false,
+            selected_image: None,
         };
         
         let welcome_msg = if app.ollama_available {
@@ -267,6 +269,79 @@ Examples:
                 request_type: Some(RequestType::System),
             });
             self.input_text.clear();
+            return;
+        }
+        
+        if content.starts_with("/image ") {
+            let path = content.strip_prefix("/image ").unwrap().trim();
+            
+            if path.is_empty() {
+                self.messages.push(ChatMessage {
+                    role: MessageRole::Assistant,
+                    content: "Usage: /image /path/to/image.png\n\nExample: /image ~/Pictures/screenshot.png".to_string(),
+                    timestamp: chrono::Utc::now(),
+                    request_type: Some(RequestType::Vision),
+                });
+                self.input_text.clear();
+                return;
+            }
+            
+            // Check if file exists
+            let path_obj = std::path::Path::new(path);
+            if !path_obj.exists() {
+                self.messages.push(ChatMessage {
+                    role: MessageRole::Assistant,
+                    content: format!("❌ File not found: {}\n\nPlease check the path and try again.", path),
+                    timestamp: chrono::Utc::now(),
+                    request_type: Some(RequestType::Vision),
+                });
+                self.input_text.clear();
+                return;
+            }
+            
+            // Check if it's a valid image
+            let extension = path_obj.extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_lowercase())
+                .unwrap_or_default();
+            
+            if !["png", "jpg", "jpeg", "gif", "bmp", "webp"].contains(&extension.as_str()) {
+                self.messages.push(ChatMessage {
+                    role: MessageRole::Assistant,
+                    content: format!("Unsupported format: {}\n\nSupported: PNG, JPG, JPEG, GIF, BMP, WebP", extension),
+                    timestamp: chrono::Utc::now(),
+                    request_type: Some(RequestType::Vision),
+                });
+                self.input_text.clear();
+                return;
+            }
+            
+            self.selected_image = Some(path.to_string());
+            
+            // Get image info
+            let file_name = path_obj.file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "Unknown".to_string());
+            
+            let file_size = std::fs::metadata(path)
+                .map(|m| m.len())
+                .unwrap_or(0);
+            
+            let size_str = if file_size > 1024 * 1024 {
+                format!("{:.1} MB", file_size as f64 / (1024.0 * 1024.0))
+            } else {
+                format!("{:.1} KB", file_size as f64 / 1024.0)
+            };
+            
+            self.messages.push(ChatMessage {
+                role: MessageRole::User,
+                content: format!("[Image: {} ({})]\n\nWhat do you see in this image?", file_name, size_str),
+                timestamp: chrono::Utc::now(),
+                request_type: Some(RequestType::Vision),
+            });
+            
+            self.input_text.clear();
+            self.is_loading = true;
             return;
         }
         
@@ -479,11 +554,34 @@ impl eframe::App for KaelApp {
                 ui.horizontal(|ui| {
                     let text_edit = egui::TextEdit::singleline(&mut self.input_text)
                         .hint_text(format!("Message {}...", self.current_ai.display_name()))
-                        .desired_width(ui.available_width() - 120.0);
+                        .desired_width(ui.available_width() - 160.0);
                     
                     ui.add(text_edit);
                     
-                    if ui.button("📎").clicked() {}
+                    // Image button - shows status
+                    let image_btn_text = if let Some(ref img) = self.selected_image {
+                        let name = std::path::Path::new(img)
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or_else(|| "Image".to_string());
+                        if name.len() > 15 {
+                            format!("📷 {}", &name[..15])
+                        } else {
+                            format!("📷 {}", name)
+                        }
+                    } else {
+                        "📷".to_string()
+                    };
+                    
+                    if ui.button(image_btn_text).clicked() {
+                        // Show file path input dialog
+                        self.messages.push(ChatMessage {
+                            role: MessageRole::Assistant,
+                            content: "To add an image, drag and drop it onto this window, or send the image path using:\n\n`/image /path/to/image.png`\n\nSupported formats: PNG, JPG, JPEG, GIF, BMP".to_string(),
+                            timestamp: chrono::Utc::now(),
+                            request_type: Some(RequestType::Vision),
+                        });
+                    }
                     
                     if ui.add_enabled(!self.is_loading, egui::Button::new("Send ➤"))
                         .clicked() 
