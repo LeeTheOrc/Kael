@@ -37,6 +37,8 @@ reqwest = { version = "0.12", features = ["json", "blocking"] }
 # Terminal/PTY support
 portable-pty = "0.8"
 
+# Local GGUF model inference via Ollama (llama.cpp wrapper)
+
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
 
