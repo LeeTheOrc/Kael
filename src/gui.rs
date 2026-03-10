@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use tokio::runtime::Runtime;
 
-use crate::ai::{LlamaEngine, Terminal, Vault};
+use crate::ai::{LlamaEngine, ModelDownloader, Terminal, TrainingPipeline, Vault};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MessageRole {
@@ -117,6 +117,8 @@ pub struct KaelApp {
     chat_history: VecDeque<(AiMode, Vec<ChatMessage>)>,
     llama_engine: LlamaEngine,
     runtime: Runtime,
+    model_downloader: ModelDownloader,
+    training_pipeline: TrainingPipeline,
     ollama_url: String,
     terminal: Terminal,
     sudo_set: bool,
@@ -124,15 +126,24 @@ pub struct KaelApp {
     vault: Option<Vault>,
     terminal_output: String,
     terminal_input: String,
+    downloading: bool,
+    download_progress: String,
 }
 
 impl KaelApp {
     pub fn new() -> Self {
         let runtime = Runtime::new().expect("Failed to create Tokio runtime");
         let llama_engine = LlamaEngine::new();
+        let model_downloader = ModelDownloader::new();
+        let training_pipeline = TrainingPipeline::new();
         let ollama_url = "http://localhost:11434".to_string();
         
-        // List available models (this also creates dir on first run)
+        // Initialize training database
+        if let Err(e) = training_pipeline.init() {
+            eprintln!("Failed to init training: {}", e);
+        }
+        
+        // List available models 
         let _models = LlamaEngine::list_available_models();
         
         let vault = match Vault::new() {
@@ -151,6 +162,8 @@ impl KaelApp {
             chat_history: VecDeque::new(),
             llama_engine,
             runtime,
+            model_downloader,
+            training_pipeline,
             ollama_url,
             terminal: Terminal::new(),
             sudo_set: false,
@@ -158,17 +171,20 @@ impl KaelApp {
             vault,
             terminal_output: String::from("Welcome to Kael Terminal\nType commands and press Enter to execute.\nUse 'sudo' commands - password will be prompted.\n\n$ "),
             terminal_input: String::new(),
+            downloading: false,
+            download_progress: String::new(),
         };
         
-        let models = LlamaEngine::list_available_models();
+        // Check if models exist, if not show download option
+        let models = ModelDownloader::list_downloaded_models();
         let welcome_msg = if !models.is_empty() {
             format!(
-                "Hello! I'm Kael, your AI assistant.\n\n✅ Local AI models available: {}\n\nJust chat naturally with me and I'll understand what you need:\n• Schedule appointments → I'll help with calendar\n• Write code → I'll use the Programmer\n• Analyze images → I'll use Vision\n• Install apps → I'll run the commands\n• General chat → I'm here to help\n\nNo commands needed - just tell me what you want!",
-                models.join(", ")
+                "Hello! I'm Kael, your AI assistant.\n\n✅ Models loaded: {}\n\nI'll learn from you over time through RAG/Lora.\nWhen knowledge grows large enough, I'll 'bake' it into smarter models.\n\nJust chat naturally - tell me what you need!",
+                models.iter().map(|(t, _)| t.to_string()).collect::<Vec<_>>().join(", ")
             )
         } else {
             format!(
-                "Hello! I'm Kael, your AI assistant.\n\n⚠️ No GGUF models found in ~/.local/share/Kael/models/\n\nDownload a GGUF model (like TinyLlama or Qwen) and place it in the models folder to enable local AI.\n\nIn the meantime, click '📟 Terminal' on the left for a built-in terminal."
+                "Hello! I'm Kael, your AI assistant.\n\n⚠️ No models downloaded yet.\n\nClick '⬇️ Download Models' in the sidebar to get started.\n\nI'll use the smallest Dolphin models for Director/Programmer\nand LLaVA for Vision.\n\nI'll learn from you through RAG/SQL and get smarter over time!"
             )
         };
         
@@ -523,6 +539,61 @@ impl eframe::App for KaelApp {
                         ui.label(egui::RichText::new("🔴 No model").color(egui::Color32::from_rgb(239, 68, 68)));
                     } else {
                         ui.label(egui::RichText::new("🟡 Model available").color(egui::Color32::from_rgb(234, 179, 8)));
+                    }
+                }
+                
+                ui.separator();
+                
+                // Download Models button
+                if !self.downloading {
+                    if ui.button("⬇️ Download Models").clicked() {
+                        self.downloading = true;
+                        self.download_progress = "Starting download...".to_string();
+                        let downloader = self.model_downloader.clone();
+                        let modals_dir = ModelDownloader::get_modals_dir();
+                        
+                        // Spawn async download
+                        std::thread::spawn(move || {
+                            let rt = tokio::runtime::Runtime::new().unwrap();
+                            rt.block_on(async {
+                                for ai_type in ["director", "programmer", "vision"] {
+                                    if !ModelDownloader::model_exists(ai_type) {
+                                        match downloader.download_model(ai_type).await {
+                                            Ok(path) => {
+                                                println!("Downloaded {} to {:?}", ai_type, path);
+                                            }
+                                            Err(e) => {
+                                                println!("Failed to download {}: {}", ai_type, e);
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                    }
+                } else {
+                    ui.label(egui::RichText::new("⬇️ Downloading...").color(egui::Color32::from_rgb(59, 130, 246)));
+                }
+                
+                // Show training stats
+                ui.separator();
+                ui.label(egui::RichText::new("Training:").color(egui::Color32::GRAY));
+                
+                let ai_type_str = match self.current_ai {
+                    AiMode::Director => "director",
+                    AiMode::Programmer => "programmer", 
+                    AiMode::Vision => "vision",
+                    AiMode::Terminal => "terminal",
+                };
+                
+                if let Ok(stats) = self.training_pipeline.get_stats(ai_type_str) {
+                    ui.label(format!("📚 Knowledge: {}", stats.total_items));
+                    ui.label(format!("🔥 Unbaked: {}", stats.unbaked_items));
+                    ui.label(format!("✅ Baked: {}", stats.baked_items));
+                    
+                    // Auto-bake check
+                    if stats.unbaked_items >= 100 {
+                        ui.label(egui::RichText::new("💡 Ready to bake!").color(egui::Color32::from_rgb(234, 179, 8)));
                     }
                 }
                 

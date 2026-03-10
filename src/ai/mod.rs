@@ -5,6 +5,8 @@ pub mod ollama;
 pub mod llama;
 pub mod database;
 pub mod vault;
+pub mod downloader;
+pub mod training;
 
 pub use orchestrator::*;
 pub use search::*;
@@ -13,3 +15,5 @@ pub use ollama::*;
 pub use llama::*;
 pub use database::*;
 pub use vault::*;
+pub use downloader::*;
+pub use training::*;
