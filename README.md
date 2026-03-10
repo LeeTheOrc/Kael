@@ -76,8 +76,16 @@ Kael/
 - [x] Image support for Vision AI
   - `/image /path/to/image.png` - Analyze images
   - Supported formats: PNG, JPG, JPEG, GIF, BMP, WebP
+- [x] SQL Database (SQLite) for:
+  - Chat history storage
+  - RAG knowledge base
+  - LoRA configuration management
+- [x] RAG/Knowledge system:
+  - `/learn <text>` - Teach Kael something new
+  - `/recall <query>` - Search saved knowledge
+  - `/stats` - Show database statistics
+  - `/history` - Show chat history
 - [ ] llama.cpp integration (pending - requires GGUF model files)
-- [ ] RAG system (pending)
 - [ ] Profile encryption (pending)
 
 ---

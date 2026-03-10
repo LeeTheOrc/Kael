@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use tokio::runtime::Runtime;
 
-use crate::ai::Terminal;
+use crate::ai::{Terminal, Vault};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MessageRole {
@@ -120,6 +120,7 @@ pub struct KaelApp {
     terminal: Terminal,
     sudo_set: bool,
     selected_image: Option<String>,
+    vault: Option<Vault>,
 }
 
 impl KaelApp {
@@ -128,6 +129,18 @@ impl KaelApp {
         
         let ollama_url = "http://localhost:11434".to_string();
         let ollama_available = runtime.block_on(check_ollama(&ollama_url));
+        
+        // Initialize vault (RAG + LoRA + Chat history)
+        let vault = match Vault::new() {
+            Ok(v) => {
+                println!("Vault initialized successfully");
+                Some(v)
+            }
+            Err(e) => {
+                eprintln!("Failed to initialize vault: {}", e);
+                None
+            }
+        };
         
         let mut app = Self {
             messages: Vec::new(),
@@ -141,6 +154,7 @@ impl KaelApp {
             terminal: Terminal::new(),
             sudo_set: false,
             selected_image: None,
+            vault,
         };
         
         let welcome_msg = if app.ollama_available {
@@ -234,11 +248,16 @@ impl KaelApp {
 /setsudo <password> - Set your sudo password for terminal commands
 /clearsudo          - Clear stored sudo password (recommended after use)
 /terminal <command>  - Run a terminal command directly
+/learn <text>       - Teach Kael something (saves to knowledge base)
+/recall <query>     - Search your saved knowledge
+/stats             - Show database statistics
+/history           - Show chat history
 
 Examples:
 /setsudo mypassword123
 /terminal sudo pacman -S firefox
-/terminal ls -la
+/learn The project is called Kael and it's written in Rust
+/recall Kael project
 "#;
             self.messages.push(ChatMessage {
                 role: MessageRole::Assistant,
@@ -342,6 +361,150 @@ Examples:
             
             self.input_text.clear();
             self.is_loading = true;
+            return;
+        }
+        
+        // Vault/RAG commands
+        if content.starts_with("/learn ") || content.starts_with("/add ") {
+            let what = content.strip_prefix("/learn ").or_else(|| content.strip_prefix("/add ")).unwrap().trim();
+            
+            if let Some(ref vault) = self.vault {
+                match vault.add_knowledge(what, what, "user_input", "director") {
+                    Ok(id) => {
+                        self.messages.push(ChatMessage {
+                            role: MessageRole::Assistant,
+                            content: format!("✅ Learned (ID: {})", id),
+                            timestamp: chrono::Utc::now(),
+                            request_type: Some(RequestType::System),
+                        });
+                    }
+                    Err(e) => {
+                        self.messages.push(ChatMessage {
+                            role: MessageRole::Assistant,
+                            content: format!("❌ Failed to learn: {}", e),
+                            timestamp: chrono::Utc::now(),
+                            request_type: Some(RequestType::System),
+                        });
+                    }
+                }
+            } else {
+                self.messages.push(ChatMessage {
+                    role: MessageRole::Assistant,
+                    content: "Vault not available. Database error.".to_string(),
+                    timestamp: chrono::Utc::now(),
+                    request_type: Some(RequestType::System),
+                });
+            }
+            self.input_text.clear();
+            return;
+        }
+        
+        if content.starts_with("/search ") || content.starts_with("/recall ") {
+            let query = content.strip_prefix("/search ").or_else(|| content.strip_prefix("/recall ")).unwrap().trim();
+            
+            if let Some(ref vault) = self.vault {
+                match vault.search_knowledge(query, "director") {
+                    Ok(docs) => {
+                        if docs.is_empty() {
+                            self.messages.push(ChatMessage {
+                                role: MessageRole::Assistant,
+                                content: format!("No results found for: \"{}\"", query),
+                                timestamp: chrono::Utc::now(),
+                                request_type: Some(RequestType::System),
+                            });
+                        } else {
+                            let results: String = docs.iter().take(3).enumerate()
+                                .map(|(i, d)| format!("{}. {}\n{}\n", i+1, d.title, &d.content.chars().take(200).collect::<String>()))
+                                .collect();
+                            self.messages.push(ChatMessage {
+                                role: MessageRole::Assistant,
+                                content: format!("Found {} results:\n\n{}", docs.len(), results),
+                                timestamp: chrono::Utc::now(),
+                                request_type: Some(RequestType::System),
+                            });
+                        }
+                    }
+                    Err(e) => {
+                        self.messages.push(ChatMessage {
+                            role: MessageRole::Assistant,
+                            content: format!("❌ Search failed: {}", e),
+                            timestamp: chrono::Utc::now(),
+                            request_type: Some(RequestType::System),
+                        });
+                    }
+                }
+            }
+            self.input_text.clear();
+            return;
+        }
+        
+        if content == "/stats" {
+            if let Some(ref vault) = self.vault {
+                match vault.get_stats() {
+                    Ok(stats) => {
+                        self.messages.push(ChatMessage {
+                            role: MessageRole::Assistant,
+                            content: format!("📊 Kael Stats:\n\n• Chat messages: {}\n• Knowledge documents: {}\n• LoRA configs: {}", 
+                                stats.chat_messages, stats.rag_documents, stats.lora_configs),
+                            timestamp: chrono::Utc::now(),
+                            request_type: Some(RequestType::System),
+                        });
+                    }
+                    Err(e) => {
+                        self.messages.push(ChatMessage {
+                            role: MessageRole::Assistant,
+                            content: format!("❌ Stats error: {}", e),
+                            timestamp: chrono::Utc::now(),
+                            request_type: Some(RequestType::System),
+                        });
+                    }
+                }
+            } else {
+                self.messages.push(ChatMessage {
+                    role: MessageRole::Assistant,
+                    content: "Vault not available".to_string(),
+                    timestamp: chrono::Utc::now(),
+                    request_type: Some(RequestType::System),
+                });
+            }
+            self.input_text.clear();
+            return;
+        }
+        
+        if content == "/history" || content == "/memories" {
+            if let Some(ref vault) = self.vault {
+                match vault.get_chat_history("director", 10) {
+                    Ok(history) => {
+                        if history.is_empty() {
+                            self.messages.push(ChatMessage {
+                                role: MessageRole::Assistant,
+                                content: "No chat history yet.".to_string(),
+                                timestamp: chrono::Utc::now(),
+                                request_type: Some(RequestType::System),
+                            });
+                        } else {
+                            let mems: String = history.iter().take(5).map(|h| {
+                                format!("{}: {}", h.role, &h.content.chars().take(100).collect::<String>())
+                            }).collect::<Vec<_>>().join("\n");
+                            self.messages.push(ChatMessage {
+                                role: MessageRole::Assistant,
+                                content: format!("Recent memories:\n\n{}", mems),
+                                timestamp: chrono::Utc::now(),
+                                request_type: Some(RequestType::System),
+                            });
+                        }
+                    }
+                    Err(e) => {
+                        self.messages.push(ChatMessage {
+                            role: MessageRole::Assistant,
+                            content: format!("Error: {}", e),
+                            timestamp: chrono::Utc::now(),
+                            request_type: Some(RequestType::System),
+                        });
+                    }
+                }
+            }
+            self.input_text.clear();
             return;
         }
         
