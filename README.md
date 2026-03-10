@@ -1,6 +1,6 @@
 # Kael - AI Assistant
 
-> **Status: INITIALIZING** - Project structure being built
+> **Status: IN DEVELOPMENT** - v0.3.0
 
 ## Project Overview
 
@@ -15,8 +15,9 @@ Kael is a 2-part AI Assistant built entirely in Rust:
 
 ### Tech Stack
 - **Language**: Rust (100% - no Node.js)
-- **LLM Integration**: llama.cpp bindings (local models)
+- **LLM Integration**: Ollama (local models)
 - **Database**: SQLite for RAG/chat history
+- **GUI**: eframe/egui
 - **Platform**: Cross-platform (Linux, Windows, macOS)
 
 ---
@@ -26,130 +27,126 @@ Kael is a 2-part AI Assistant built entirely in Rust:
 ```
 Kael/
 ├── .vault/              # RAG, LoRA files for each AI
-│   ├── director/
-│   │   ├── rag/         # Director's knowledge base
-│   │   └── lora/        # Director's fine-tuned weights
-│   ├── programmer/
-│   │   ├── rag/
-│   │   └── lora/
-│   └── vision/
-│       ├── rag/
-│       └── lora/
-├── .profiles/           # Encrypted email/calendar profiles
+│   ├── director/rag/   # Director's knowledge base
+│   ├── director/lora/  # Director's fine-tuned weights
+│   ├── programmer/rag/
+│   ├── programmer/lora/
+│   └── vision/rag/,lora/
+├── .profiles/           # Encrypted email/calendar profiles (pending)
 ├── apps/
-│   ├── kael/           # Main application source
-│   │   └── src/
-│   └── src/            # Other apps source
 ├── pkgbuild/
-│   ├── debug/          # Debug builds
-│   └── release/        # Release builds
-├── modals/             # AI model files
-│   ├── director/       # Director AI models
-│   ├── programmer/     # Programmer AI models
-│   └── vision/         # Vision AI models
-├── docs/               # Documentation
-└── src/                # Main Kael source
+├── modals/             # AI model files (.gguf)
+├── docs/
+└── src/               # Main source
 ```
 
 ---
 
-## Progress Log
+## What's Done ✅
 
-### 2026-03-09
-- [x] Created directory structure
-- [x] Initial Cargo.toml with Rust dependencies
-- [x] Basic config module (TOML-based)
-- [x] Basic CLI chat interface (no AI yet)
-- [x] GPG key created and added to GitHub
-- [x] Git repository initialized and pushed to GitHub
-- [x] GUI chat interface (ChatGPT-style using eframe/egui)
-- [x] AI Flow system implemented:
-  - All messages go to Director AI first
-  - Director routes to appropriate sub-AI (PA, Programmer, Vision)
-  - Request type detection (Chat, Schedule, Email, Code, Vision, Install, Search)
-- [x] Terminal integration with sudo password support
-  - `/setsudo <password>` - Set sudo password for terminal commands
-  - `/terminal <command>` - Run terminal command directly
-  - Seamless experience - no confirmation dialogs
-  - Only sudo commands need password (your safety net)
-- [x] Ollama integration for local AI models
-- [x] Image support for Vision AI
-  - `/image /path/to/image.png` - Analyze images
-  - Supported formats: PNG, JPG, JPEG, GIF, BMP, WebP
-- [x] SQL Database (SQLite) for:
-  - Chat history storage
-  - RAG knowledge base
-  - LoRA configuration management
-- [x] RAG/Knowledge system:
-  - `/learn <text>` - Teach Kael something new
-  - `/recall <query>` - Search saved knowledge
-  - `/stats` - Show database statistics
-  - `/history` - Show chat history
-- [ ] llama.cpp integration (pending - requires GGUF model files)
-- [ ] Profile encryption (pending)
+### Core
+- [x] GUI Interface (ChatGPT-style with sidebar)
+- [x] Fully autonomous chat - just tell Kael what you want
+- [x] Auto-detect intents (schedule, code, install, vision, email)
+- [x] Auto-switch to appropriate AI based on context
+
+### Terminal
+- [x] Built-in terminal panel (click Terminal in sidebar)
+- [x] Type commands directly - no prefix needed
+- [x] Sudo password prompt in terminal
+
+### Database
+- [x] SQLite for persistent storage
+- [x] Chat history
+- [x] RAG knowledge base (/learn, /recall)
+- [x] LoRA config management
+- [x] Database stats
+
+### AI Integration
+- [x] Ollama client (connects to local Ollama)
+- [x] Demo mode when Ollama not running
+- [x] Vision support (/image command)
+
+---
+
+## What's Pending 📋
+
+### High Priority
+- [ ] Connect real AI (needs Ollama installed)
+- [ ] Profile encryption system (.profiles)
+- [ ] Calendar/email integration (PA Protocol)
+
+### Medium Priority
+- [ ] llama.cpp direct integration (instead of Ollama)
+- [ ] Auto-save chat history
+- [ ] Settings panel in GUI
+
+### Nice to Have
+- [ ] Voice input
+- [ ] Text-to-speech
+- [ ] Plugin system
+- [ ] Multi-language support
 
 ---
 
 ## Current Code Status
 
-### Implemented
-- `src/main.rs` - Entry point with logging setup
-- `src/config.rs` - Configuration management (TOML)
-- `src/chat.rs` - CLI chat interface (text-based)
-
-### Pending Implementation
-- `src/ai/` - Ollama/llama.cpp integration
-- `src/vault/` - RAG system with SQLite
-- `src/profiles/` - Encrypted profile management
+### Implemented Files
+- `src/main.rs` - Entry point
+- `src/gui.rs` - Main GUI with autonomous chat + terminal
+- `src/config.rs` - Configuration management
+- `src/ai/mod.rs` - AI modules
+- `src/ai/database.rs` - SQLite database
+- `src/ai/vault.rs` - RAG/knowledge system
+- `src/ai/terminal.rs` - Terminal execution
+- `src/ai/terminal_gui.rs` - PTY terminal (not yet wired)
 
 ---
 
-## Building
+## How to Use
 
+### Running Kael
 ```bash
-# Debug build
-cargo build
-
-# Release build
-cargo build --release
-
-# Run
-cargo run
+cargo run --release
 ```
+
+### Natural Chat Examples
+```
+"Schedule a meeting tomorrow at 3pm"
+"Write me a Python function to parse JSON"
+"Install Firefox"
+"What's in this image?" (then use /image path)
+"List all files in my home directory"
+```
+
+### Sidebar Modes
+- 🎯 **Director/PA** - General chat, schedules, emails
+- 💻 **Programmer** - Code help
+- 👁️ **Vision** - Image analysis
+- 📟 **Terminal** - Run shell commands
+
+---
+
+## Setup AI
+
+1. Install Ollama: https://ollama.ai
+2. Pull models:
+```bash
+ollama pull dolphin3.0-mistral
+ollama pull dolphin3.0-coder
+ollama pull llava
+```
+3. Restart Kael
 
 ---
 
 ## Configuration
 
-Config is stored in platform-specific directories:
-- **Linux**: `~/.local/share/com.kaelos.Kael/config.toml`
-- **Windows**: `%APPDATA%\com.kaelos.Kael\config.toml`
+Config stored in:
+- **Linux**: `~/.local/share/com.kaelos.Kael/`
+- **Windows**: `%APPDATA%\com.kaelos.Kael\`
 
-### Default Config
-```toml
-[models]
-director_model = "dolphin3.0-mistral-7b-q4"
-programmer_model = "dolphin3.0-coder-7b-q4"
-vision_model = "llava-7b-q4"
-
-[chat]
-max_tokens = 2048
-temperature = 0.7
-
-[api]
-ollama_url = "http://localhost:11434"
-use_local = true
-```
-
----
-
-## Notes for Developers
-
-1. **No Node.js** - Pure Rust project
-2. **Cross-platform** - Uses `directories` crate for config paths
-3. **Windows support** - Uses `winreg` for registry on Windows
-4. **Local AI** - Designed to run with Ollama/llama.cpp locally
-5. **Daily commits** - Push to GitHub daily as requested
+Database: `kael.db`
 
 ---
 
@@ -157,3 +154,11 @@ use_local = true
 
 - Repository: https://github.com/LeeTheOrc/Kael
 - GPG Key: `E0AA316328B9D877`
+
+---
+
+## Version History
+
+- **v0.3.0** - Autonomous chat + built-in terminal
+- **v0.2.0** - GUI interface
+- **v0.1.0** - Initial project
