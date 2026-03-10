@@ -86,12 +86,11 @@ Kael is a fully local AI Assistant built entirely in Rust with continuous learni
 
 ### Per-AI Training System (.vault)
 - [x] Separate SQLite database for each AI in `.vault/`
-- [x] Knowledge base with confidence scores
-- [x] Interaction history with feedback tracking
-- [x] LoRA adapter management
-- [x] Training sessions log
-- [x] "Baking" when knowledge grows large (100+ items)
-- [x] UI shows stats: knowledge count, unbaked/baked, sessions
+- [x] Training pipeline: SQL → RAG → LoRA → Bake
+- [x] Importance tracking (trivial/important/critical)
+- [x] Director decides what promotes through the pipeline
+- [x] UI shows: SQL, RAG, LoRA, Baked counts
+- [x] Suggestions when thresholds reached
 
 ### Terminal
 - [x] Built-in terminal panel
@@ -155,22 +154,37 @@ Or run the built binary:
 
 ### Training Stats (in sidebar)
 Each AI shows:
-- 📚 Knowledge items learned
-- 🔥 Unbaked (ready to bake)
+- 💾 SQL items (trivial data)
+- 📚 RAG items (important knowledge)
+- 🎯 LoRA adapters
 - ✅ Baked (incorporated into model)
-- 📖 Sessions trained
-- 🏷️ Topics learned
+- ⭐ Important / 🔸 Trivial breakdown
+- 💡 Suggestions when thresholds reached
 
 ---
 
 ## How Learning Works
 
-1. **Start Small** - Each AI starts with base Dolphin model
-2. **Learn from Use** - Interactions stored in `.vault/` SQL with confidence scores
-3. **RAG Context** - Knowledge injected into prompts automatically
-4. **Baking** - When 100+ unbaked items, can "bake" knowledge
-5. **Restart Cycle** - Bake = restart with smarter base model
-6. **Repeat** - Continuously improves over time
+### Training Pipeline (SQL → RAG → LoRA → Bake)
+
+1. **SQL** - All data starts here (trivial stuff stays here)
+2. **RAG** - Important info promoted when SQL gets big (1000+ items)
+3. **LoRA** - When RAG gets big (100+ items) → create LoRA adapter
+4. **Bake** - When LoRA gets big (5+ adapters) → bake into model
+5. **Director Decides** - The Director AI marks what's trivial vs important
+
+### Learning Process
+- AI learns from interactions stored in `.vault/` SQL
+- Director marks importance (0=trivial, 1=important, 2=critical)
+- Trivial data stays in SQL (doesn't clutter brain)
+- Important stuff promotes to RAG for context
+- Lots of RAG → create LoRA adapter
+- Many LoRAs → bake into model and restart cycle
+
+### Auto-Promotion
+- 1000+ SQL items → prompt to promote to RAG
+- 100+ RAG items → prompt to create LoRA
+- 5+ LoRA adapters → prompt to bake
 
 ---
 

@@ -582,19 +582,38 @@ impl eframe::App for KaelApp {
                 };
                 
                 if let Ok(stats) = self.training_manager.for_ai(ai_type_str).get_stats() {
-                    ui.label(format!("📚 {} Knowledge: {}", stats.ai_type, stats.total_items));
-                    ui.label(format!("🔥 Unbaked: {}", stats.unbaked_items));
-                    ui.label(format!("✅ Baked: {}", stats.baked_items));
-                    ui.label(format!("📖 Sessions: {}", stats.sessions_trained));
+                    ui.label(format!("📊 {} Training:", stats.ai_type));
+                    ui.label(format!("  💾 SQL: {}", stats.sql_items));
+                    ui.label(format!("  📚 RAG: {}", stats.rag_items));
+                    ui.label(format!("  🎯 LoRA: {}", stats.lora_items));
+                    ui.label(format!("  ✅ Baked: {}", stats.baked_items));
                     
-                    // Show categories
-                    if !stats.categories.is_empty() {
-                        ui.label(format!("🏷️ Topics: {}", stats.categories.join(", ")));
+                    // Show importance breakdown
+                    if let Some(count) = stats.importance_breakdown.get("trivial") {
+                        if *count > 0 {
+                            ui.label(format!("  🔸 Trivial: {}", count));
+                        }
+                    }
+                    if let Some(count) = stats.importance_breakdown.get("important") {
+                        if *count > 0 {
+                            ui.label(format!("  ⭐ Important: {}", count));
+                        }
+                    }
+                    if let Some(count) = stats.importance_breakdown.get("critical") {
+                        if *count > 0 {
+                            ui.label(format!("  🔥 Critical: {}", count));
+                        }
                     }
                     
-                    // Auto-bake check
-                    if stats.unbaked_items >= 100 {
-                        ui.label(egui::RichText::new("💡 Ready to bake!").color(egui::Color32::from_rgb(234, 179, 8)));
+                    // Pipeline suggestions
+                    if stats.should_promote_to_rag {
+                        ui.label(egui::RichText::new("  💡 Promote to RAG").color(egui::Color32::from_rgb(234, 179, 8)));
+                    }
+                    if stats.should_create_lora {
+                        ui.label(egui::RichText::new("  💡 Create LoRA").color(egui::Color32::from_rgb(59, 130, 246)));
+                    }
+                    if stats.should_bake {
+                        ui.label(egui::RichText::new("  💡 Ready to Bake!").color(egui::Color32::from_rgb(16, 185, 129)));
                     }
                 }
                 
