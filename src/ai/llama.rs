@@ -17,10 +17,21 @@ impl LlamaEngine {
     }
 
     pub fn get_models_dir() -> PathBuf {
+        // Look for modals folder in project root
+        if let Ok(current_dir) = std::env::current_dir() {
+            let modals_path = current_dir
+                .parent()
+                .map(|p| p.join("modals"))
+                .unwrap_or_else(|| PathBuf::from("modals"));
+            if modals_path.exists() {
+                return modals_path;
+            }
+        }
+        // Fallback to ~/.local/share/Kael/models
         if let Some(proj_dirs) = directories::ProjectDirs::from("com", "kaelos", "Kael") {
             proj_dirs.data_dir().join("models")
         } else {
-            PathBuf::from("models")
+            PathBuf::from("modals")
         }
     }
 
