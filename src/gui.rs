@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use tokio::runtime::Runtime;
 
-use crate::ai::{LlamaEngine, ModelDownloader, Terminal, TrainingPipeline, Vault};
+use crate::ai::{AiTrainingSystem, LlamaEngine, ModelDownloader, Terminal, TrainingManager, Vault};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MessageRole {
@@ -118,7 +118,7 @@ pub struct KaelApp {
     llama_engine: LlamaEngine,
     runtime: Runtime,
     model_downloader: ModelDownloader,
-    training_pipeline: TrainingPipeline,
+    training_manager: TrainingManager,
     ollama_url: String,
     terminal: Terminal,
     sudo_set: bool,
@@ -135,13 +135,8 @@ impl KaelApp {
         let runtime = Runtime::new().expect("Failed to create Tokio runtime");
         let llama_engine = LlamaEngine::new();
         let model_downloader = ModelDownloader::new();
-        let training_pipeline = TrainingPipeline::new();
+        let training_manager = TrainingManager::new();
         let ollama_url = "http://localhost:11434".to_string();
-        
-        // Initialize training database
-        if let Err(e) = training_pipeline.init() {
-            eprintln!("Failed to init training: {}", e);
-        }
         
         // List available models 
         let _models = LlamaEngine::list_available_models();
@@ -163,7 +158,7 @@ impl KaelApp {
             llama_engine,
             runtime,
             model_downloader,
-            training_pipeline,
+            training_manager,
             ollama_url,
             terminal: Terminal::new(),
             sudo_set: false,
@@ -586,10 +581,16 @@ impl eframe::App for KaelApp {
                     AiMode::Terminal => "terminal",
                 };
                 
-                if let Ok(stats) = self.training_pipeline.get_stats(ai_type_str) {
-                    ui.label(format!("📚 Knowledge: {}", stats.total_items));
+                if let Ok(stats) = self.training_manager.for_ai(ai_type_str).get_stats() {
+                    ui.label(format!("📚 {} Knowledge: {}", stats.ai_type, stats.total_items));
                     ui.label(format!("🔥 Unbaked: {}", stats.unbaked_items));
                     ui.label(format!("✅ Baked: {}", stats.baked_items));
+                    ui.label(format!("📖 Sessions: {}", stats.sessions_trained));
+                    
+                    // Show categories
+                    if !stats.categories.is_empty() {
+                        ui.label(format!("🏷️ Topics: {}", stats.categories.join(", ")));
+                    }
                     
                     // Auto-bake check
                     if stats.unbaked_items >= 100 {
