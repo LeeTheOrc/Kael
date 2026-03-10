@@ -1,22 +1,25 @@
 # Kael - AI Assistant
 
-> **Status: IN DEVELOPMENT** - v0.3.0
+> **Status: IN DEVELOPMENT** - v0.4.0
 
 ## Project Overview
 
-Kael is a 2-part AI Assistant built entirely in Rust:
-1. **Director/PA** - General chat, personal assistant, task management
-2. **Programmer** - Code assistance and programming help
+Kael is a fully local AI Assistant built entirely in Rust with continuous learning:
 
-### AI Models (planned)
-- Primary: Dolphin 3.0 (smallest with reasoning)
-- Secondary: Dolphin 3.0 Coder variant
-- Vision: LLaVA for image analysis
+1. **Director/PA** - General chat, scheduling, email, personal assistance
+2. **Programmer** - Code assistance and programming help
+3. **Vision** - Image analysis
+
+### Key Features
+- **100% Local** - No external API calls, no Ollama needed
+- **Continuous Learning** - Each AI grows smarter over time via RAG/Lora
+- **Baking System** - When knowledge gets large, bake into smarter models
+- **Auto-download** - Downloads smallest Dolphin models from HuggingFace
 
 ### Tech Stack
 - **Language**: Rust (100% - no Node.js)
-- **LLM Integration**: Ollama (local models)
-- **Database**: SQLite for RAG/chat history
+- **LLM**: llama-gguf (pure Rust GGUF inference)
+- **Database**: SQLite (one per AI for training)
 - **GUI**: eframe/egui
 - **Platform**: Cross-platform (Linux, Windows, macOS)
 
@@ -26,18 +29,28 @@ Kael is a 2-part AI Assistant built entirely in Rust:
 
 ```
 Kael/
-├── .vault/              # RAG, LoRA files for each AI
-│   ├── director/rag/   # Director's knowledge base
-│   ├── director/lora/  # Director's fine-tuned weights
-│   ├── programmer/rag/
-│   ├── programmer/lora/
-│   └── vision/rag/,lora/
-├── .profiles/           # Encrypted email/calendar profiles (pending)
-├── apps/
-├── pkgbuild/
-├── modals/             # AI model files (.gguf)
+├── apps/kael/           # Main application
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── gui.rs
+│   │   └── ai/
+│   │       ├── llama.rs         # llama-gguf integration
+│   │       ├── downloader.rs    # Auto-download models
+│   │       └── training.rs     # Per-AI training system
+│   └── target/
+├── modals/              # AI Models & Training Data
+│   ├── director/        # Director AI
+│   │   ├── director.gguf
+│   │   └── training.db  # Knowledge, interactions, loras
+│   ├── programmer/      # Programmer AI
+│   │   ├── programmer.gguf
+│   │   └── training.db
+│   └── vision/         # Vision AI
+│       ├── vision.gguf
+│       └── training.db
+├── .profiles/           # Encrypted profiles (pending)
 ├── docs/
-└── src/               # Main source
+└── pkgbuild/
 ```
 
 ---
@@ -49,66 +62,62 @@ Kael/
 - [x] Fully autonomous chat - just tell Kael what you want
 - [x] Auto-detect intents (schedule, code, install, vision, email)
 - [x] Auto-switch to appropriate AI based on context
+- [x] Built-in terminal panel (click Terminal in sidebar)
+
+### Local AI (No External Dependencies)
+- [x] llama-gguf integration (pure Rust GGUF inference)
+- [x] Auto-download models from HuggingFace
+- [x] Models stored in `../modals/`
+- [x] Works completely offline after download
+
+### Per-AI Training System
+- [x] Separate SQLite database for each AI
+- [x] Knowledge base with confidence scores
+- [x] Interaction history with feedback tracking
+- [x] LoRA adapter management
+- [x] Training sessions log
+- [x] "Baking" when knowledge grows large (100+ items)
+- [x] UI shows stats: knowledge count, unbaked/baked, sessions
 
 ### Terminal
-- [x] Built-in terminal panel (click Terminal in sidebar)
+- [x] Built-in terminal panel
 - [x] Type commands directly - no prefix needed
 - [x] Sudo password prompt in terminal
-
-### Database
-- [x] SQLite for persistent storage
-- [x] Chat history
-- [x] RAG knowledge base (/learn, /recall)
-- [x] LoRA config management
-- [x] Database stats
-
-### AI Integration
-- [x] Ollama client (connects to local Ollama)
-- [x] Demo mode when Ollama not running
-- [x] Vision support (/image command)
 
 ---
 
 ## What's Pending 📋
 
 ### High Priority
-- [ ] Connect real AI (needs Ollama installed)
 - [ ] Profile encryption system (.profiles)
 - [ ] Calendar/email integration (PA Protocol)
+- [ ] Bake button in UI to trigger model update
+- [ ] Auto-bake when threshold reached
 
 ### Medium Priority
-- [ ] llama.cpp direct integration (instead of Ollama)
-- [ ] Auto-save chat history
-- [ ] Settings panel in GUI
-
-### Nice to Have
 - [ ] Voice input
 - [ ] Text-to-speech
+- [ ] Settings panel in GUI
+- [ ] Auto-save chat history
+
+### Nice to Have
 - [ ] Plugin system
 - [ ] Multi-language support
 
 ---
 
-## Current Code Status
-
-### Implemented Files
-- `src/main.rs` - Entry point
-- `src/gui.rs` - Main GUI with autonomous chat + terminal
-- `src/config.rs` - Configuration management
-- `src/ai/mod.rs` - AI modules
-- `src/ai/database.rs` - SQLite database
-- `src/ai/vault.rs` - RAG/knowledge system
-- `src/ai/terminal.rs` - Terminal execution
-- `src/ai/terminal_gui.rs` - PTY terminal (not yet wired)
-
----
-
 ## How to Use
 
-### Running Kael
+### Run Kael
 ```bash
+cd apps/kael
 cargo run --release
 ```
+
+### First Run
+1. Click **"⬇️ Download Models"** in sidebar
+2. Wait for download (Dolphin for Director/Programmer, LLaVA for Vision)
+3. Start chatting!
 
 ### Natural Chat Examples
 ```
@@ -121,22 +130,28 @@ cargo run --release
 
 ### Sidebar Modes
 - 🎯 **Director/PA** - General chat, schedules, emails
-- 💻 **Programmer** - Code help
+- 💻 **Programmer** - Code help  
 - 👁️ **Vision** - Image analysis
 - 📟 **Terminal** - Run shell commands
 
+### Training Stats (in sidebar)
+Each AI shows:
+- 📚 Knowledge items learned
+- 🔥 Unbaked (ready to bake)
+- ✅ Baked (incorporated into model)
+- 📖 Sessions trained
+- 🏷️ Topics learned
+
 ---
 
-## Setup AI
+## How Learning Works
 
-1. Install Ollama: https://ollama.ai
-2. Pull models:
-```bash
-ollama pull dolphin3.0-mistral
-ollama pull dolphin3.0-coder
-ollama pull llava
-```
-3. Restart Kael
+1. **Start Small** - Each AI starts with base Dolphin model
+2. **Learn from Use** - Interactions stored in SQL with confidence scores
+3. **RAG Context** - Knowledge injected into prompts automatically
+4. **Baking** - When 100+ unbaked items, can "bake" knowledge
+5. **Restart Cycle** - Bake = restart with smarter base model
+6. **Repeat** - Continuously improves over time
 
 ---
 
@@ -146,19 +161,17 @@ Config stored in:
 - **Linux**: `~/.local/share/com.kaelos.Kael/`
 - **Windows**: `%APPDATA%\com.kaelos.Kael\`
 
-Database: `kael.db`
-
 ---
 
 ## GitHub
 
 - Repository: https://github.com/LeeTheOrc/Kael
-- GPG Key: `E0AA316328B9D877`
 
 ---
 
 ## Version History
 
+- **v0.4.0** - Local GGUF inference + per-AI training system + auto-download
 - **v0.3.0** - Autonomous chat + built-in terminal
 - **v0.2.0** - GUI interface
 - **v0.1.0** - Initial project
