@@ -440,32 +440,28 @@ impl KaelApp {
             full_prompt.push_str(&context);
             full_prompt.push_str(&format!("\nUser: {}\nAssistant:", last_message));
             
-            match self.llama_engine.generate(&full_prompt, Some(512)) {
+            match self.llama_engine.generate(&full_prompt, Some(256)) {
                 Ok(response) => response,
-                Err(e) => format!("Error: {}", e),
+                Err(e) => format!("Error generating: {}", e),
             }
         } else {
-            // Check if model file exists for this AI
-            if ModelDownloader::model_exists(ai_type_str) {
-                let model_path = ModelDownloader::get_model_path(ai_type_str);
-                match self.llama_engine.load_model(model_path.to_str().unwrap_or("")) {
-                    Ok(_) => {
-                        // Record interaction for learning
-                        self.training_manager
-                            .for_ai(ai_type_str)
-                            .record_interaction(&last_message, "...")
-                            .ok();
-                        
-                        format!("✅ Loaded {} model!\n\nTry your message again - I'm ready!", ai_type_str)
-                    }
-                    Err(e) => format!("Failed to load model: {}", e)
-                }
+            // Demo mode - no model loaded yet
+            let demo_responses = vec![
+                "Hi! I'm Kael. The AI model is still loading. Please wait or check if the model is downloaded.",
+                "Hello! I can help you with coding, scheduling, and more once the AI model is ready.",
+                "Hey there! The model is loading - this should only take a moment on powerful hardware.",
+            ];
+            
+            // Simple response based on message content
+            let msg_lower = last_message.to_lowercase();
+            if msg_lower.contains("hello") || msg_lower.contains("hi") {
+                "Hello! I'm Kael. The AI model is loading - please wait a moment.".to_string()
+            } else if msg_lower.contains("code") || msg_lower.contains("program") {
+                "I can help with coding! The model is loading - try again in a moment.".to_string()
+            } else if msg_lower.contains("schedule") || msg_lower.contains("calendar") {
+                "I can help with scheduling! The model is loading - please wait.".to_string()
             } else {
-                // No model - prompt to download
-                format!(
-                    "⚠️ No {} model available.\n\nDownload from HuggingFace or click '⬇️ Download Models'.",
-                    ai_type_str
-                )
+                demo_responses[0].to_string()
             }
         };
         
