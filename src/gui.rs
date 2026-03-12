@@ -6,6 +6,21 @@ use tokio::runtime::Runtime;
 use crate::ai::{AiTrainingSystem, LlamaEngine, ModelDownloader, Terminal, TrainingManager, Vault};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum LeftPanel {
+    #[default]
+    Chat,
+    Calendar,
+    Settings,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum RightPanel {
+    #[default]
+    Tasks,
+    Projects,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MessageRole {
     #[default]
     User,
@@ -128,6 +143,9 @@ pub struct KaelApp {
     terminal_input: String,
     downloading: bool,
     download_progress: String,
+    left_panel: LeftPanel,
+    right_panel: RightPanel,
+    show_terminal: bool,
 }
 
 impl KaelApp {
@@ -168,6 +186,9 @@ impl KaelApp {
             terminal_input: String::new(),
             downloading: false,
             download_progress: String::new(),
+            left_panel: LeftPanel::Chat,
+            right_panel: RightPanel::Tasks,
+            show_terminal: false,
         };
         
         // Check if models exist, if not show download option
@@ -591,51 +612,82 @@ impl eframe::App for KaelApp {
             ctx.request_repaint();
         }
         
-        egui::SidePanel::left("sidebar")
-            .default_width(200.0)
+        let screen_size = ctx.screen_rect().size();
+        let left_width = screen_size.x * 0.20;
+        let right_width = screen_size.x * 0.20;
+        let middle_width = screen_size.x * 0.60;
+        
+        // LEFT PANEL (20%) - Navigation
+        egui::SidePanel::left("left_panel")
+            .width_range(left_width..=left_width)
             .show(ctx, |ui| {
                 ui.heading("🤖 Kael");
                 ui.separator();
                 
+                // Navigation tabs
+                ui.label(egui::RichText::new("Navigate").color(egui::Color32::GRAY));
+                
+                if ui.selectable_label(self.left_panel == LeftPanel::Chat, "💬 Chat").clicked() {
+                    self.left_panel = LeftPanel::Chat;
+                    self.show_terminal = false;
+                }
+                if ui.selectable_label(self.left_panel == LeftPanel::Calendar, "📅 Calendar").clicked() {
+                    self.left_panel = LeftPanel::Calendar;
+                }
+                if ui.selectable_label(self.left_panel == LeftPanel::Settings, "⚙️ Settings").clicked() {
+                    self.left_panel = LeftPanel::Settings;
+                }
+                
+                ui.separator();
+                
+                // AI Mode selection
+                ui.label(egui::RichText::new("AI Mode").color(egui::Color32::GRAY));
+                
+                for ai in [AiMode::Director, AiMode::Programmer, AiMode::Vision] {
+                    let is_selected = self.current_ai == ai;
+                    if ui.selectable_label(is_selected, format!("{} {}", ai.icon(), ai.display_name())).clicked() {
+                        self.switch_ai(ai);
+                    }
+                }
+                
+                // Toggle terminal
+                ui.separator();
+                ui.label(egui::RichText::new("Tools").color(egui::Color32::GRAY));
+                ui.checkbox(&mut self.show_terminal, "📟 Terminal");
+                
                 // Status
-                ui.label(egui::RichText::new("Status:").color(egui::Color32::GRAY));
+                ui.separator();
+                ui.label(egui::RichText::new("Status").color(egui::Color32::GRAY));
                 if self.llama_engine.is_loaded() {
                     let model_name = self.llama_engine.get_model_path()
                         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
                         .unwrap_or_else(|| "Model".to_string());
                     ui.label(egui::RichText::new(format!("🟢 {}", model_name)).color(egui::Color32::from_rgb(16, 185, 129)));
                 } else {
-                    let models = LlamaEngine::list_available_models();
-                    if models.is_empty() {
-                        ui.label(egui::RichText::new("🔴 No model").color(egui::Color32::from_rgb(239, 68, 68)));
-                    } else {
-                        ui.label(egui::RichText::new("🟡 Model available").color(egui::Color32::from_rgb(234, 179, 8)));
-                    }
+                    ui.label(egui::RichText::new("🔴 No model").color(egui::Color32::from_rgb(239, 68, 68)));
                 }
                 
-                ui.separator();
+                // Sudo status
+                if self.sudo_set {
+                    ui.label(egui::RichText::new("🔑 Sudo ready").color(egui::Color32::from_rgb(16, 185, 129)));
+                } else {
+                    ui.label(egui::RichText::new("⚠️ Sudo not set").color(egui::Color32::from_rgb(251, 191, 36)));
+                }
                 
-                // Download Models button
+                // Download button
+                ui.separator();
                 if !self.downloading {
                     if ui.button("⬇️ Download Models").clicked() {
                         self.downloading = true;
-                        self.download_progress = "Starting download...".to_string();
                         let downloader = self.model_downloader.clone();
-                        let modals_dir = ModelDownloader::get_modals_dir();
-                        
-                        // Spawn async download
                         std::thread::spawn(move || {
                             let rt = tokio::runtime::Runtime::new().unwrap();
                             rt.block_on(async {
                                 for ai_type in ["director", "programmer", "vision"] {
                                     if !ModelDownloader::model_exists(ai_type) {
                                         match downloader.download_model(ai_type).await {
-                                            Ok(path) => {
-                                                println!("Downloaded {} to {:?}", ai_type, path);
-                                            }
-                                            Err(e) => {
-                                                println!("Failed to download {}: {}", ai_type, e);
-                                            }
+                                            Ok(path) => println!("Downloaded {} to {:?}", ai_type, path),
+                                            Err(e) => println!("Failed: {}: {}", ai_type, e),
                                         }
                                     }
                                 }
@@ -643,76 +695,7 @@ impl eframe::App for KaelApp {
                         });
                     }
                 } else {
-                    ui.label(egui::RichText::new("⬇️ Downloading...").color(egui::Color32::from_rgb(59, 130, 246)));
-                }
-                
-                // Show training stats
-                ui.separator();
-                ui.label(egui::RichText::new("Training:").color(egui::Color32::GRAY));
-                
-                let ai_type_str = match self.current_ai {
-                    AiMode::Director => "director",
-                    AiMode::Programmer => "programmer", 
-                    AiMode::Vision => "vision",
-                    AiMode::Terminal => "terminal",
-                };
-                
-                if let Ok(stats) = self.training_manager.for_ai(ai_type_str).get_stats() {
-                    ui.label(format!("📊 {} Training:", stats.ai_type));
-                    ui.label(format!("  💾 SQL: {}", stats.sql_items));
-                    ui.label(format!("  📚 RAG: {}", stats.rag_items));
-                    ui.label(format!("  🎯 LoRA: {}", stats.lora_items));
-                    ui.label(format!("  ✅ Baked: {}", stats.baked_items));
-                    
-                    // Show importance breakdown
-                    if let Some(count) = stats.importance_breakdown.get("trivial") {
-                        if *count > 0 {
-                            ui.label(format!("  🔸 Trivial: {}", count));
-                        }
-                    }
-                    if let Some(count) = stats.importance_breakdown.get("important") {
-                        if *count > 0 {
-                            ui.label(format!("  ⭐ Important: {}", count));
-                        }
-                    }
-                    if let Some(count) = stats.importance_breakdown.get("critical") {
-                        if *count > 0 {
-                            ui.label(format!("  🔥 Critical: {}", count));
-                        }
-                    }
-                    
-                    // Pipeline suggestions
-                    if stats.should_promote_to_rag {
-                        ui.label(egui::RichText::new("  💡 Promote to RAG").color(egui::Color32::from_rgb(234, 179, 8)));
-                    }
-                    if stats.should_create_lora {
-                        ui.label(egui::RichText::new("  💡 Create LoRA").color(egui::Color32::from_rgb(59, 130, 246)));
-                    }
-                    if stats.should_bake {
-                        ui.label(egui::RichText::new("  💡 Ready to Bake!").color(egui::Color32::from_rgb(16, 185, 129)));
-                    }
-                }
-                
-                ui.separator();
-                
-                // AI selection
-                ui.label(egui::RichText::new("Mode:").color(egui::Color32::GRAY));
-                
-                for ai in [AiMode::Director, AiMode::Programmer, AiMode::Vision, AiMode::Terminal] {
-                    let is_selected = self.current_ai == ai;
-                    if ui.selectable_label(is_selected, format!("{} {}", ai.icon(), ai.display_name())).clicked() {
-                        self.switch_ai(ai);
-                    }
-                }
-                
-                ui.separator();
-                
-                // Sudo status
-                ui.label(egui::RichText::new("Sudo:").color(egui::Color32::GRAY));
-                if self.sudo_set {
-                    ui.label(egui::RichText::new("🔑 Ready").color(egui::Color32::from_rgb(16, 185, 129)));
-                } else {
-                    ui.label(egui::RichText::new("⚠️ Not set").color(egui::Color32::from_rgb(251, 191, 36)));
+                    ui.label("⬇️ Downloading...");
                 }
                 
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
@@ -721,85 +704,173 @@ impl eframe::App for KaelApp {
                 });
             });
         
-        // Main content - chat OR terminal
-        if self.current_ai == AiMode::Terminal {
-            // Terminal panel
-            egui::CentralPanel::default()
-                .show(ctx, |ui| {
-                    ui.heading("📟 Terminal");
-                    ui.separator();
-                    
-                    // Terminal output (scrollable)
-                    egui::ScrollArea::vertical()
-                        .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            ui.add(egui::TextEdit::multiline(&mut self.terminal_output.clone())
-                                .desired_rows(20)
-                                .desired_width(ui.available_width())
-                                .interactive(false)
-                                .code_editor());
-                        });
-                    
-                    ui.separator();
-                    
-                    // Terminal input
-                    ui.horizontal(|ui| {
-                        ui.label("$ ");
-                        ui.add(egui::TextEdit::singleline(&mut self.terminal_input)
-                            .desired_width(ui.available_width() - 30.0));
-                        
-                        let input_clone = self.terminal_input.clone();
-                        if ui.button("Run").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                            if !input_clone.is_empty() {
-                                self.handle_terminal_command(&input_clone);
-                                self.terminal_input.clear();
-                            }
-                        }
-                    });
+        // RIGHT PANEL (20%) - Tasks/Projects
+        egui::SidePanel::right("right_panel")
+            .width_range(right_width..=right_width)
+            .show(ctx, |ui| {
+                ui.heading("📋 Tasks");
+                ui.separator();
+                
+                // Toggle between Tasks and Projects
+                ui.horizontal(|ui| {
+                    if ui.selectable_label(self.right_panel == RightPanel::Tasks, "📝 Tasks").clicked() {
+                        self.right_panel = RightPanel::Tasks;
+                    }
+                    if ui.selectable_label(self.right_panel == RightPanel::Projects, "📁 Projects").clicked() {
+                        self.right_panel = RightPanel::Projects;
+                    }
                 });
-        } else {
-            // Chat panel
-            egui::CentralPanel::default()
-                .show(ctx, |ui| {
-                    egui::ScrollArea::vertical()
-                        .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            for message in &self.messages {
-                                self.render_message(ui, message);
-                            }
-                        });
+                
+                ui.separator();
+                
+                match self.right_panel {
+                    RightPanel::Tasks => {
+                        ui.label("Active Tasks:");
+                        ui.label("• Task 1 (coming soon)");
+                        ui.label("• Task 2 (coming soon)");
+                    }
+                    RightPanel::Projects => {
+                        ui.label("Active Projects:");
+                        ui.label("• Project 1 (coming soon)");
+                        ui.label("• Project 2 (coming soon)");
+                    }
+                }
+                
+                // Training status for current AI
+                ui.separator();
+                let ai_type = match self.current_ai {
+                    AiMode::Director => "director",
+                    AiMode::Programmer => "programmer",
+                    AiMode::Vision => "vision",
+                    _ => "terminal",
+                };
+                
+                if let Ok(stats) = self.training_manager.for_ai(ai_type).get_stats() {
+                    ui.label(egui::RichText::new("Training").color(egui::Color32::GRAY));
+                    ui.label(format!("💾 SQL: {}", stats.sql_items));
+                    ui.label(format!("📚 RAG: {}", stats.rag_items));
+                    ui.label(format!("🎯 LoRA: {}", stats.lora_items));
+                    ui.label(format!("✅ Baked: {}", stats.baked_items));
                     
-                    ui.add_space(10.0);
+                    if stats.should_promote_to_rag || stats.should_create_lora || stats.should_bake {
+                        ui.label(egui::RichText::new("💡 Action needed").color(egui::Color32::from_rgb(234, 179, 8)));
+                    }
+                }
+            });
+        
+        // MIDDLE PANEL (60%) - Working Area
+        egui::CentralPanel::default()
+            .show(ctx, |ui| {
+                if self.show_terminal {
+                    // Use VerticalSplit for chat/terminal
+                    let total_height = ui.available_height();
+                    let chat_height = total_height * 0.75;
                     
-                    // Input
-                    ui.horizontal(|ui| {
-                        let text_edit = egui::TextEdit::singleline(&mut self.input_text)
-                            .hint_text(format!("Message {}...", self.current_ai.display_name()))
-                            .desired_width(ui.available_width() - 80.0);
-                        
-                        ui.add(text_edit);
-                        
-                        if ui.add_enabled(!self.is_loading, egui::Button::new("Send ➤")).clicked() {
-                            self.send_message();
-                        }
+                    // Top: Chat area (75%)
+                    ui.allocate_ui(egui::vec2(ui.available_width(), chat_height), |ui| {
+                        self.render_chat_area(ui);
                     });
                     
-                    ui.add_space(5.0);
-                    
-                    // Status bar
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Status:").color(egui::Color32::GRAY));
-                        if self.is_loading {
-                            ui.spinner();
-                            ui.label("Thinking...");
-                        } else if self.llama_engine.is_loaded() {
-                            ui.label("AI Ready");
-                        } else {
-                            ui.label("No model loaded");
-                        }
-                    });
-                });
+                    // Bottom: Terminal (25%)
+                    ui.separator();
+                    self.render_terminal_area(ui);
+                } else {
+                    // Just chat - full height
+                    self.render_chat_area(ui);
+                }
+            });
+    }
+}
+
+impl KaelApp {
+    fn render_chat_area(&mut self, ui: &mut egui::Ui) {
+        // Header based on left panel selection
+        match self.left_panel {
+            LeftPanel::Chat => {
+                ui.heading(format!("💬 Chat - {}", self.current_ai.display_name()));
+            }
+            LeftPanel::Calendar => {
+                ui.heading("📅 Calendar");
+                ui.label("Calendar view coming soon...");
+                return;
+            }
+            LeftPanel::Settings => {
+                ui.heading("⚙️ Settings");
+                ui.label("Settings view coming soon...");
+                return;
+            }
         }
+        
+        ui.separator();
+        
+        // Show AI mode indicator
+        ui.horizontal(|ui| {
+            ui.label(format!("{} ", self.current_ai.icon()));
+            ui.label(self.current_ai.display_name());
+            ui.separator();
+            if self.is_loading {
+                ui.spinner();
+                ui.label("Thinking...");
+            }
+        });
+        
+        ui.separator();
+        
+        // Chat messages (like ChatGPT bubbles)
+        egui::ScrollArea::vertical()
+            .stick_to_bottom(true)
+            .show(ui, |ui| {
+                for message in &self.messages {
+                    self.render_message(ui, message);
+                }
+            });
+        
+        ui.add_space(10.0);
+        
+        // Input
+        ui.horizontal(|ui| {
+            let text_edit = egui::TextEdit::singleline(&mut self.input_text)
+                .hint_text(format!("Message {}...", self.current_ai.display_name()))
+                .desired_width(ui.available_width() - 80.0);
+            
+            ui.add(text_edit);
+            
+            if ui.add_enabled(!self.is_loading, egui::Button::new("Send ➤")).clicked() {
+                self.send_message();
+            }
+        });
+    }
+    
+    fn render_terminal_area(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        ui.heading("📟 Terminal");
+        ui.separator();
+        
+        // Terminal output
+        egui::ScrollArea::vertical()
+            .stick_to_bottom(true)
+            .show(ui, |ui| {
+                ui.add(egui::TextEdit::multiline(&mut self.terminal_output.clone())
+                    .desired_rows(10)
+                    .desired_width(ui.available_width())
+                    .interactive(false)
+                    .code_editor());
+            });
+        
+        // Terminal input
+        ui.horizontal(|ui| {
+            ui.label("$ ");
+            ui.add(egui::TextEdit::singleline(&mut self.terminal_input)
+                .desired_width(ui.available_width() - 30.0));
+            
+            let input_clone = self.terminal_input.clone();
+            if ui.button("Run").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                if !input_clone.is_empty() {
+                    self.handle_terminal_command(&input_clone);
+                    self.terminal_input.clear();
+                }
+            }
+        });
     }
 }
 
