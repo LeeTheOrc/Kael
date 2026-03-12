@@ -846,22 +846,24 @@ impl KaelApp {
         
         // Input
         ui.horizontal(|ui| {
-            let response = ui.add(egui::TextEdit::singleline(&mut self.input_text)
+            ui.add(egui::TextEdit::singleline(&mut self.input_text)
                 .hint_text("Message Kael...")
                 .desired_width(ui.available_width() - 80.0));
             
-            let input_clone = self.input_text.clone();
-            if ui.add_enabled(!self.is_loading && !input_clone.is_empty(), egui::Button::new("Send ➤")).clicked() {
-                self.send_message();
-                self.input_text.clear();
-            }
-            
-            // Handle Enter key
-            if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !self.input_text.is_empty() {
-                self.send_message();
-                self.input_text.clear();
+            if ui.button("Send ➤").clicked() {
+                let msg = self.input_text.clone();
+                if !msg.is_empty() {
+                    self.send_message();
+                    self.input_text.clear();
+                }
             }
         });
+        
+        // Handle Enter key
+        if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !self.is_loading && !self.input_text.is_empty() {
+            self.send_message();
+            self.input_text.clear();
+        }
     }
     
     fn render_terminal_area(&mut self, ui: &mut egui::Ui) {
