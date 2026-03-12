@@ -756,19 +756,30 @@ impl eframe::App for KaelApp {
         // MIDDLE PANEL (60%) - Working Area
         egui::CentralPanel::default()
             .show(ctx, |ui| {
-                // Always show terminal at bottom (20%)
                 let total_height = ui.available_height();
-                let chat_height = total_height * 0.80;
-                let terminal_height = total_height * 0.20;
+                
+                // Reserve bottom 20% for terminal (min 80px)
+                let terminal_h = (total_height * 0.20).max(80.0);
+                let chat_h = total_height - terminal_h - 2.0;
+                
+                // Get the available rect
+                let avail = ui.available_rect_before_wrap();
                 
                 // Top: Main content (80%)
-                ui.allocate_ui(egui::vec2(ui.available_width(), chat_height), |ui| {
+                let chat_rect = egui::Rect::from_min_size(
+                    egui::pos2(avail.min.x, avail.min.y),
+                    egui::vec2(avail.width(), chat_h)
+                );
+                ui.allocate_ui_at_rect(chat_rect, |ui| {
                     self.render_main_content(ui);
                 });
                 
                 // Bottom: Terminal (20%)
-                ui.separator();
-                ui.allocate_ui(egui::vec2(ui.available_width(), terminal_height), |ui| {
+                let term_rect = egui::Rect::from_min_size(
+                    egui::pos2(avail.min.x, avail.min.y + chat_h),
+                    egui::vec2(avail.width(), terminal_h)
+                );
+                ui.allocate_ui_at_rect(term_rect, |ui| {
                     self.render_terminal_area(ui);
                 });
             });
@@ -815,22 +826,17 @@ impl KaelApp {
             }
         }
         
-        ui.separator();
-        
-        // Show AI mode indicator
+        // Show loading indicator
         ui.horizontal(|ui| {
-            ui.label(format!("{} ", self.current_ai.icon()));
-            ui.label("Kael");
-            ui.separator();
             if self.is_loading {
                 ui.spinner();
-                ui.label("Thinking...");
+                ui.label("Kael is thinking...");
             }
         });
         
-        ui.separator();
+        ui.add_space(5.0);
         
-        // Chat messages (like ChatGPT bubbles)
+        // Chat messages
         egui::ScrollArea::vertical()
             .id_salt("chat_scroll")
             .stick_to_bottom(true)
@@ -857,9 +863,7 @@ impl KaelApp {
     }
     
     fn render_terminal_area(&mut self, ui: &mut egui::Ui) {
-        ui.separator();
         ui.heading("📟 Terminal");
-        ui.separator();
         
         // Terminal output
         egui::ScrollArea::vertical()
