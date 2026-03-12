@@ -4,11 +4,12 @@
 
 ## Project Overview
 
-Kael is a fully local AI Assistant built entirely in Rust with continuous learning. Think of Kael as a single AI with multiple specialized parts working together:
+Kael is a fully local AI Assistant built entirely in Rust with continuous learning. Think of Kael as a single AI organism:
 
-- 🧠 **Brain** - Director/Chat/PA (handles conversation, scheduling, decisions)
-- 💻 **Programmer** - Code writing and debugging  
-- 👁️ **Vision** - Image analysis (coming soon)
+- 🧠 **Brain** - Two parts working together:
+  - 🎯 **Director** - Decision making, scheduling, conversation flow
+  - 💻 **Programmer** - Logic, code, problem solving
+- 👁️ **Vision** - Eyes (image analysis)
 - 🎤 **Ears** - Voice input (planned)
 - 🗣️ **Mouth** - Text-to-speech (planned)
 
