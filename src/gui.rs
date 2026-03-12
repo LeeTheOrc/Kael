@@ -139,11 +139,7 @@ impl KaelApp {
         let ollama_url = "http://localhost:11434".to_string();
         
         // List available models 
-        let models = LlamaEngine::list_available_models();
-        eprintln!("DEBUG: Found models dir: {:?}", LlamaEngine::get_models_dir());
-        eprintln!("DEBUG: Available models: {:?}", models);
-        eprintln!("DEBUG: Director model exists: {:?}", ModelDownloader::model_exists("director"));
-        eprintln!("DEBUG: Programmer model exists: {:?}", ModelDownloader::model_exists("programmer"));
+        let _models = LlamaEngine::list_available_models();
         
         let vault = match Vault::new() {
             Ok(v) => Some(v),
@@ -396,7 +392,17 @@ impl KaelApp {
             .get_sql_context(10)
             .unwrap_or_default();
         
-        // Use local model if loaded, otherwise try to load it
+        // Try to load model if not loaded
+        if !self.llama_engine.is_loaded() {
+            if ModelDownloader::model_exists(ai_type_str) {
+                let model_path = ModelDownloader::get_model_path(ai_type_str);
+                if let Err(e) = self.llama_engine.load_model(model_path.to_str().unwrap_or("")) {
+                    eprintln!("Failed to load model: {}", e);
+                }
+            }
+        }
+        
+        // Use local model if loaded
         let response = if self.llama_engine.is_loaded() {
             // Get conversation context
             let context: String = self.messages
@@ -446,20 +452,11 @@ impl KaelApp {
                     Err(e) => format!("Failed to load model: {}", e)
                 }
             } else {
-                // No model - show what models are needed
-                let models_needed = ModelDownloader::list_downloaded_models();
-                if models_needed.is_empty() {
-                    format!(
-                        "⚠️ No AI model downloaded yet.\n\nClick '⬇️ Download Models' in the sidebar to download models."
-                    )
-                } else {
-                    format!(
-                        "⚠️ {} model not found.\n\nAvailable: {:?}\n\nDownload the {} model.",
-                        ai_type_str,
-                        models_needed.iter().map(|(t, _)| t).collect::<Vec<_>>(),
-                        ai_type_str
-                    )
-                }
+                // No model - prompt to download
+                format!(
+                    "⚠️ No {} model available.\n\nDownload from HuggingFace or click '⬇️ Download Models'.",
+                    ai_type_str
+                )
             }
         };
         
