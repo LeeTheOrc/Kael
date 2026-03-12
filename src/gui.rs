@@ -145,7 +145,7 @@ pub struct KaelApp {
     download_progress: String,
     left_panel: LeftPanel,
     right_panel: RightPanel,
-    show_terminal: bool,
+    uploaded_file: Option<String>,
 }
 
 impl KaelApp {
@@ -188,7 +188,7 @@ impl KaelApp {
             download_progress: String::new(),
             left_panel: LeftPanel::Chat,
             right_panel: RightPanel::Tasks,
-            show_terminal: false,
+            uploaded_file: None,
         };
         
         // Check if models exist, if not show download option
@@ -629,7 +629,6 @@ impl eframe::App for KaelApp {
                 
                 if ui.selectable_label(self.left_panel == LeftPanel::Chat, "💬 Chat").clicked() {
                     self.left_panel = LeftPanel::Chat;
-                    self.show_terminal = false;
                 }
                 if ui.selectable_label(self.left_panel == LeftPanel::Calendar, "📅 Calendar").clicked() {
                     self.left_panel = LeftPanel::Calendar;
@@ -640,20 +639,27 @@ impl eframe::App for KaelApp {
                 
                 ui.separator();
                 
-                // AI Mode selection
-                ui.label(egui::RichText::new("AI Mode").color(egui::Color32::GRAY));
+                // Upload files for AI
+                ui.label(egui::RichText::new("Upload").color(egui::Color32::GRAY));
                 
-                for ai in [AiMode::Director, AiMode::Programmer, AiMode::Vision] {
-                    let is_selected = self.current_ai == ai;
-                    if ui.selectable_label(is_selected, format!("{} {}", ai.icon(), ai.display_name())).clicked() {
-                        self.switch_ai(ai);
-                    }
+                if ui.button("📁 Upload File").clicked() {
+                    // For now just show a message - file dialog would need native dialog
+                    self.input_text = "I want to analyze a file. (File upload coming soon)".to_string();
                 }
                 
-                // Toggle terminal
+                // Quick actions
                 ui.separator();
-                ui.label(egui::RichText::new("Tools").color(egui::Color32::GRAY));
-                ui.checkbox(&mut self.show_terminal, "📟 Terminal");
+                ui.label(egui::RichText::new("Quick Actions").color(egui::Color32::GRAY));
+                
+                if ui.button("📷 Analyze Image").clicked() {
+                    self.input_text = "Analyze this image: ".to_string();
+                }
+                if ui.button("💻 Write Code").clicked() {
+                    self.input_text = "Help me write code: ".to_string();
+                }
+                if ui.button("📅 Schedule").clicked() {
+                    self.input_text = "Schedule: ".to_string();
+                }
                 
                 // Status
                 ui.separator();
@@ -761,24 +767,43 @@ impl eframe::App for KaelApp {
         // MIDDLE PANEL (60%) - Working Area
         egui::CentralPanel::default()
             .show(ctx, |ui| {
-                if self.show_terminal {
-                    // Use VerticalSplit for chat/terminal
-                    let total_height = ui.available_height();
-                    let chat_height = total_height * 0.75;
-                    
-                    // Top: Chat area (75%)
-                    ui.allocate_ui(egui::vec2(ui.available_width(), chat_height), |ui| {
-                        self.render_chat_area(ui);
-                    });
-                    
-                    // Bottom: Terminal (25%)
-                    ui.separator();
+                // Always show terminal at bottom (20%)
+                let total_height = ui.available_height();
+                let chat_height = total_height * 0.80;
+                let terminal_height = total_height * 0.20;
+                
+                // Top: Main content (80%)
+                ui.allocate_ui(egui::vec2(ui.available_width(), chat_height), |ui| {
+                    self.render_main_content(ui);
+                });
+                
+                // Bottom: Terminal (20%)
+                ui.separator();
+                ui.allocate_ui(egui::vec2(ui.available_width(), terminal_height), |ui| {
                     self.render_terminal_area(ui);
-                } else {
-                    // Just chat - full height
-                    self.render_chat_area(ui);
-                }
+                });
             });
+    }
+}
+
+impl KaelApp {
+    fn render_main_content(&mut self, ui: &mut egui::Ui) {
+        // Based on left panel selection
+        match self.left_panel {
+            LeftPanel::Chat => {
+                self.render_chat_area(ui);
+            }
+            LeftPanel::Calendar => {
+                ui.heading("📅 Calendar");
+                ui.separator();
+                ui.label("Calendar view coming soon...");
+            }
+            LeftPanel::Settings => {
+                ui.heading("⚙️ Settings");
+                ui.separator();
+                ui.label("Settings view coming soon...");
+            }
+        }
     }
 }
 
