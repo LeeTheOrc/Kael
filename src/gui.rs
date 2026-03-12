@@ -832,6 +832,7 @@ impl KaelApp {
         
         // Chat messages (like ChatGPT bubbles)
         egui::ScrollArea::vertical()
+            .id_salt("chat_scroll")
             .stick_to_bottom(true)
             .show(ui, |ui| {
                 for message in &self.messages {
@@ -862,6 +863,7 @@ impl KaelApp {
         
         // Terminal output
         egui::ScrollArea::vertical()
+            .id_salt("terminal_scroll")
             .stick_to_bottom(true)
             .show(ui, |ui| {
                 ui.add(egui::TextEdit::multiline(&mut self.terminal_output.clone())
