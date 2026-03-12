@@ -49,11 +49,18 @@ pub struct AiTrainingSystem {
 
 impl AiTrainingSystem {
     pub fn new(ai_type: &str) -> Self {
-        let vault_dir = if let Ok(current_dir) = std::env::current_dir() {
-            current_dir
-                .parent()
-                .map(|p| p.join(".vault"))
-                .unwrap_or_else(|| PathBuf::from(".vault"))
+        // Use current working directory as project root
+        let vault_dir = if let Ok(cwd) = std::env::current_dir() {
+            // Check current dir first
+            let vault = cwd.join(".vault");
+            if vault.exists() {
+                vault
+            } else if let Some(parent) = cwd.parent() {
+                // Check parent (if running from apps/kael)
+                parent.join(".vault")
+            } else {
+                PathBuf::from(".vault")
+            }
         } else {
             PathBuf::from(".vault")
         };

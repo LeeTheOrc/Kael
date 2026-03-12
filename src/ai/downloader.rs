@@ -14,28 +14,24 @@ impl ModelDownloader {
     }
 
     pub fn get_modals_dir() -> PathBuf {
-        // Use project folder: Kael/modals (parent of apps/kael)
-        if let Ok(current_dir) = std::env::current_dir() {
-            let modals_path = current_dir
-                .parent()
-                .map(|p| p.join("modals"))
-                .unwrap_or_else(|| PathBuf::from("modals"));
-            if let Some(parent) = modals_path.parent() {
-                // Check if parent is Kael root
-                if parent.join(".vault").exists() || parent.join("apps").exists() {
-                    return modals_path;
+        // Use current working directory as project root
+        if let Ok(cwd) = std::env::current_dir() {
+            // First check current dir
+            let modals = cwd.join("modals");
+            if modals.exists() {
+                return modals;
+            }
+            // Check parent (if running from apps/kael)
+            if let Some(parent) = cwd.parent() {
+                let modals = parent.join("modals");
+                if modals.exists() {
+                    return modals;
                 }
             }
-            if modals_path.exists() {
-                return modals_path;
-            }
         }
-        // Fallback to old location
-        if let Some(proj_dirs) = ProjectDirs::from("com", "kaelos", "Kael") {
-            proj_dirs.data_dir().join("modals")
-        } else {
-            PathBuf::from("modals")
-        }
+        
+        // Fallback
+        PathBuf::from("modals")
     }
 
     pub fn get_model_path(ai_type: &str) -> PathBuf {
@@ -78,11 +74,11 @@ impl ModelDownloader {
             fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
         }
 
-        // TheBloke's public GGUF models (no login needed)
+        // Public vision models - using RaincloudAi which doesn't require auth
         let (repo_id, filename) = match ai_type {
             "director" => ("TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF", "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"),
             "programmer" => ("TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF", "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"),
-            "vision" => ("TheBloke/LLaVA-1.5-6.7B-GGUF", "llava-v1.5-6.7b.Q4_K_M.gguf"),
+            "vision" => ("RaincloudAi/llava-llama-3-8b-v1_1-Q4_K_M-GGUF", "llava-llama-3-8b-v1_1.Q4_K_M.gguf"),
             _ => return Err("Unknown AI type".to_string()),
         };
 
@@ -103,13 +99,13 @@ impl ModelDownloader {
             .map_err(|e| format!("Failed to download: {}", e))?;
 
         if !response.status().is_success() {
-            // Try alternative smaller model
+            // Try alternative model
             let alt_url = match ai_type {
                 "director" | "programmer" => {
                     "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
                 }
                 "vision" => {
-                    "https://huggingface.co/TheBloke/LLaVA-1.5-7B-GGUF/resolve/main/llava-v1.5-7b.Q4_K_M.gguf"
+                    "https://huggingface.co/RaincloudAi/llava-llama-3-8b-v1_1-Q4_K_M-GGUF/resolve/main/llava-llama-3-8b-v1_1.Q4_K_M.gguf"
                 }
                 _ => return Err("Unknown AI type".to_string()),
             };

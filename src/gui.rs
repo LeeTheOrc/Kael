@@ -139,7 +139,11 @@ impl KaelApp {
         let ollama_url = "http://localhost:11434".to_string();
         
         // List available models 
-        let _models = LlamaEngine::list_available_models();
+        let models = LlamaEngine::list_available_models();
+        eprintln!("DEBUG: Found models dir: {:?}", LlamaEngine::get_models_dir());
+        eprintln!("DEBUG: Available models: {:?}", models);
+        eprintln!("DEBUG: Director model exists: {:?}", ModelDownloader::model_exists("director"));
+        eprintln!("DEBUG: Programmer model exists: {:?}", ModelDownloader::model_exists("programmer"));
         
         let vault = match Vault::new() {
             Ok(v) => Some(v),
@@ -716,7 +720,7 @@ impl eframe::App for KaelApp {
                 
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                     ui.separator();
-                    ui.label(egui::RichText::new("v0.3.0").small().color(egui::Color32::GRAY));
+                    ui.label(egui::RichText::new("v0.4.0").small().color(egui::Color32::GRAY));
                 });
             });
         
