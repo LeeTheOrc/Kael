@@ -606,7 +606,7 @@ impl eframe::App for KaelApp {
         let middle_width = screen_size.x * 0.60;
         
         // LEFT PANEL (20%) - Navigation
-        egui::SidePanel::left("left_panel")
+        egui::SidePanel::left("kael_left_panel")
             .width_range(left_width..=left_width)
             .show(ctx, |ui| {
                 ui.heading("🤖 Kael");
@@ -700,7 +700,7 @@ impl eframe::App for KaelApp {
             });
         
         // RIGHT PANEL (20%) - Tasks/Projects
-        egui::SidePanel::right("right_panel")
+        egui::SidePanel::right("kael_right_panel")
             .width_range(right_width..=right_width)
             .show(ctx, |ui| {
                 ui.heading("📋 Tasks");
