@@ -603,7 +603,7 @@ impl eframe::App for KaelApp {
         let screen_size = ctx.screen_rect().size();
         let left_width = screen_size.x * 0.20;
         let right_width = screen_size.x * 0.20;
-        let middle_width = screen_size.x * 0.60;
+        let _middle_width = screen_size.x * 0.60;
         
         // LEFT PANEL (20%) - Navigation
         egui::SidePanel::left("kael_left_panel")
@@ -801,7 +801,7 @@ impl KaelApp {
         // Header based on left panel selection
         match self.left_panel {
             LeftPanel::Chat => {
-                ui.heading(format!("💬 Chat - {}", self.current_ai.display_name()));
+                ui.heading("💬 Chat");
             }
             LeftPanel::Calendar => {
                 ui.heading("📅 Calendar");
@@ -820,7 +820,7 @@ impl KaelApp {
         // Show AI mode indicator
         ui.horizontal(|ui| {
             ui.label(format!("{} ", self.current_ai.icon()));
-            ui.label(self.current_ai.display_name());
+            ui.label("Kael");
             ui.separator();
             if self.is_loading {
                 ui.spinner();
@@ -844,7 +844,7 @@ impl KaelApp {
         // Input
         ui.horizontal(|ui| {
             let text_edit = egui::TextEdit::singleline(&mut self.input_text)
-                .hint_text(format!("Message {}...", self.current_ai.display_name()))
+                .hint_text("Message Kael...")
                 .desired_width(ui.available_width() - 80.0);
             
             ui.add(text_edit);
@@ -892,42 +892,39 @@ impl KaelApp {
     fn render_message(&self, ui: &mut egui::Ui, message: &ChatMessage) {
         let is_user = message.role == MessageRole::User;
         
-        let align = if is_user { egui::Align::Max } else { egui::Align::Min };
+        let (bg_color, text_color, align) = if is_user {
+            (egui::Color32::from_rgb(16, 163, 127), egui::Color32::WHITE, egui::Align::Max)
+        } else {
+            (egui::Color32::from_rgb(40, 40, 40), egui::Color32::from_rgb(220, 220, 220), egui::Align::Min)
+        };
         
         ui.with_layout(egui::Layout::right_to_left(align), |ui| {
             ui.add_space(10.0);
             
-            ui.group(|ui| {
-                ui.horizontal(|ui| {
-                    let avatar = match message.role {
-                        MessageRole::User => "👤",
-                        MessageRole::Assistant => "🤖",
-                        MessageRole::System => "⚙️",
-                    };
-                    ui.label(avatar);
-                    
-                    let name = if is_user { "You" } else { "Kael" };
-                    let color = if is_user {
-                        egui::Color32::from_rgb(16, 163, 127)
-                    } else {
-                        egui::Color32::from_rgb(139, 92, 246)
-                    };
-                    
-                    ui.label(egui::RichText::new(name).color(color));
-                    
-                    if let Some(rt) = message.request_type {
-                        if !is_user {
-                            ui.separator();
-                            ui.label(egui::RichText::new(format!("{:?}", rt)).small().color(egui::Color32::GRAY));
-                        }
-                    }
-                });
-                
-                ui.separator();
-                ui.label(&message.content);
+            // Chat bubble with background
+            ui.allocate_ui(egui::vec2(ui.available_width() * 0.7, 0.0), |ui| {
+                egui::Frame::none()
+                    .fill(bg_color)
+                    .rounding(12.0)
+                    .inner_margin(10.0)
+                    .show(ui, |ui| {
+                        // Name
+                        ui.horizontal(|ui| {
+                            let avatar = if is_user { "👤" } else { "🤖" };
+                            ui.label(avatar);
+                            ui.label(egui::RichText::new(if is_user { "You" } else { "Kael" })
+                                .color(text_color)
+                                .strong());
+                        });
+                        
+                        ui.add_space(5.0);
+                        
+                        // Message
+                        ui.label(egui::RichText::new(&message.content).color(text_color));
+                    });
             });
         });
         
-        ui.add_space(5.0);
+        ui.add_space(8.0);
     }
 }
