@@ -63,6 +63,25 @@ impl LlamaEngine {
         self.model_path.clone()
     }
 
+    pub fn get_ai_model_path(ai_type: &str) -> PathBuf {
+        let modals_dir = Self::get_models_dir();
+        let model_file = match ai_type {
+            "director" => "director.gguf",
+            "programmer" => "programmer.gguf",
+            "vision" => "vision.gguf",
+            _ => "model.gguf",
+        };
+        modals_dir.join(ai_type).join(model_file)
+    }
+
+    pub fn load_ai_model(&mut self, ai_type: &str) -> Result<(), String> {
+        let path = Self::get_ai_model_path(ai_type);
+        if !path.exists() {
+            return Err(format!("Model not found: {:?}", path));
+        }
+        self.load_model(path.to_str().unwrap_or(""))
+    }
+
     pub fn load_model(&mut self, model_path: &str) -> Result<(), String> {
         let config = EngineConfig {
             model_path: model_path.to_string(),

@@ -195,6 +195,27 @@ impl KaelApp {
     
     fn switch_ai(&mut self, ai: AiMode) {
         if self.current_ai != ai {
+            let ai_type = match ai {
+                AiMode::Director => "director",
+                AiMode::Programmer => "programmer",
+                AiMode::Vision => "vision",
+                AiMode::Terminal => "terminal",
+            };
+            
+            // Check if we need to load a different model
+            let current_model = self.llama_engine.get_model_path()
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()));
+            
+            let need_load = match &current_model {
+                Some(m) => m.as_str() != format!("{}.gguf", ai_type),
+                None => true,
+            };
+            
+            // Load appropriate model if needed
+            if need_load && ModelDownloader::model_exists(ai_type) {
+                self.llama_engine.load_ai_model(ai_type).ok();
+            }
+            
             self.chat_history.push_front((self.current_ai, std::mem::take(&mut self.messages)));
             self.messages = self.chat_history
                 .iter()
@@ -343,6 +364,14 @@ impl KaelApp {
             }
         }
         
+        // Get AI-specific model path
+        let ai_type_str = match self.current_ai {
+            AiMode::Director => "director",
+            AiMode::Programmer => "programmer",
+            AiMode::Vision => "vision",
+            AiMode::Terminal => "terminal",
+        };
+        
         // Build system prompt based on AI mode
         let system_prompt = match self.current_ai {
             AiMode::Director => "You are Kael, a helpful AI assistant. Be concise and practical. Help with scheduling, email, and general tasks.",
@@ -351,7 +380,19 @@ impl KaelApp {
             AiMode::Terminal => "You are Kael helping with terminal commands. Provide command-line guidance.",
         };
         
-        // Use local llama.gguf model if loaded, otherwise demo mode
+        // Get RAG context for this AI
+        let rag_context = self.training_manager
+            .for_ai(ai_type_str)
+            .get_rag_context(20)
+            .unwrap_or_default();
+        
+        // Get SQL context (trivial stuff)
+        let sql_context = self.training_manager
+            .for_ai(ai_type_str)
+            .get_sql_context(10)
+            .unwrap_or_default();
+        
+        // Use local model if loaded, otherwise try to load it
         let response = if self.llama_engine.is_loaded() {
             // Get conversation context
             let context: String = self.messages
@@ -367,30 +408,64 @@ impl KaelApp {
                 .collect::<Vec<_>>()
                 .join("\n");
             
-            let prompt = format!("{}\n\n{}\nUser: {}\nAssistant:", system_prompt, context, last_message);
+            // Build prompt with system + RAG + context + user message
+            let mut full_prompt = format!("System: {}\n\n", system_prompt);
+            if !rag_context.is_empty() {
+                full_prompt.push_str(&rag_context);
+                full_prompt.push_str("\n\n");
+            }
+            if !sql_context.is_empty() {
+                full_prompt.push_str(&sql_context);
+                full_prompt.push_str("\n\n");
+            }
+            full_prompt.push_str(&context);
+            full_prompt.push_str(&format!("\nUser: {}\nAssistant:", last_message));
             
-            match self.llama_engine.generate(&prompt, Some(512)) {
+            match self.llama_engine.generate(&full_prompt, Some(512)) {
                 Ok(response) => response,
                 Err(e) => format!("Error: {}", e),
             }
         } else {
-            // No model loaded - show help
-            let models = LlamaEngine::list_available_models();
-            if models.is_empty() {
-                format!(
-                    "⚠️ No AI model loaded.\n\nTo enable AI:\n1. Download a GGUF model (e.g., TinyLlama, Qwen2)\n2. Place it in: {}\n3. Restart Kael\n\nOr use /load <path> to load a model.",
-                    LlamaEngine::get_models_dir().display()
-                )
+            // Check if model file exists for this AI
+            if ModelDownloader::model_exists(ai_type_str) {
+                let model_path = ModelDownloader::get_model_path(ai_type_str);
+                match self.llama_engine.load_model(model_path.to_str().unwrap_or("")) {
+                    Ok(_) => {
+                        // Record interaction for learning
+                        self.training_manager
+                            .for_ai(ai_type_str)
+                            .record_interaction(&last_message, "...")
+                            .ok();
+                        
+                        format!("✅ Loaded {} model!\n\nTry your message again - I'm ready!", ai_type_str)
+                    }
+                    Err(e) => format!("Failed to load model: {}", e)
+                }
             } else {
-                // Try to auto-load first available model
-                let model_path = LlamaEngine::get_models_dir().join(&models[0]);
-                if let Err(e) = self.llama_engine.load_model(model_path.to_str().unwrap_or("")) {
-                    format!("Found models but failed to load: {}", e)
+                // No model - show what models are needed
+                let models_needed = ModelDownloader::list_downloaded_models();
+                if models_needed.is_empty() {
+                    format!(
+                        "⚠️ No AI model downloaded yet.\n\nClick '⬇️ Download Models' in the sidebar to download models."
+                    )
                 } else {
-                    format!("✅ Loaded model: {}\n\nTry sending your message again!", models[0])
+                    format!(
+                        "⚠️ {} model not found.\n\nAvailable: {:?}\n\nDownload the {} model.",
+                        ai_type_str,
+                        models_needed.iter().map(|(t, _)| t).collect::<Vec<_>>(),
+                        ai_type_str
+                    )
                 }
             }
         };
+        
+        // Record interaction for learning (after response)
+        if self.current_ai != AiMode::Terminal {
+            self.training_manager
+                .for_ai(ai_type_str)
+                .record_interaction(&last_message, &response)
+                .ok();
+        }
         
         self.messages.push(ChatMessage {
             role: MessageRole::Assistant,
