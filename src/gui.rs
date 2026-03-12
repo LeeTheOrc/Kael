@@ -216,11 +216,12 @@ impl KaelApp {
     
     fn switch_ai(&mut self, ai: AiMode) {
         if self.current_ai != ai {
+            // For now, all AI modes use the director model (vision not supported in llama-gguf)
             let ai_type = match ai {
                 AiMode::Director => "director",
-                AiMode::Programmer => "programmer",
-                AiMode::Vision => "vision",
-                AiMode::Terminal => "terminal",
+                AiMode::Programmer => "director",  // Use director for now
+                AiMode::Vision => "director",       // Use director for now - vision not supported
+                AiMode::Terminal => "director",
             };
             
             // Check if we need to load a different model
@@ -364,34 +365,21 @@ impl KaelApp {
         // Auto-switch AI based on detected intent
         match request_type {
             RequestType::Code => {
-                if self.current_ai != AiMode::Programmer {
-                    self.switch_ai(AiMode::Programmer);
-                }
+                // Stay with Director - no separate programmer model
             }
             RequestType::Vision => {
-                if self.current_ai != AiMode::Vision {
-                    self.switch_ai(AiMode::Vision);
-                }
+                // Stay with Director - vision not supported yet
             }
             RequestType::Install | RequestType::Terminal => {
-                if self.current_ai != AiMode::Terminal {
-                    self.switch_ai(AiMode::Terminal);
-                }
+                // Stay with Director - terminal handled separately
             }
             _ => {
-                if self.current_ai != AiMode::Director {
-                    self.switch_ai(AiMode::Director);
-                }
+                // Stay with Director for everything
             }
         }
         
-        // Get AI-specific model path
-        let ai_type_str = match self.current_ai {
-            AiMode::Director => "director",
-            AiMode::Programmer => "programmer",
-            AiMode::Vision => "vision",
-            AiMode::Terminal => "terminal",
-        };
+        // Get AI-specific model path - always use director for now (vision not supported)
+        let ai_type_str = "director";
         
         // Build system prompt based on AI mode
         let system_prompt = match self.current_ai {
@@ -651,9 +639,10 @@ impl eframe::App for KaelApp {
                 ui.separator();
                 ui.label(egui::RichText::new("Quick Actions").color(egui::Color32::GRAY));
                 
-                if ui.button("📷 Analyze Image").clicked() {
-                    self.input_text = "Analyze this image: ".to_string();
-                }
+                // Image analysis - disabled until vision support added
+                // if ui.button("📷 Analyze Image").clicked() {
+                //     self.input_text = "Analyze this image: ".to_string();
+                // }
                 if ui.button("💻 Write Code").clicked() {
                     self.input_text = "Help me write code: ".to_string();
                 }
